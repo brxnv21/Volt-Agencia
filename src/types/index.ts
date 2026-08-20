@@ -31,6 +31,7 @@ export interface OrderData {
   service: number
   link: string
   quantity: number
+  price?: number
   email: string
   whatsapp?: string
   contactType?: 'whatsapp' | 'email'

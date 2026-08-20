@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createPreference } from '@/lib/mercadopago'
-import { createOrderRecord, generateOrderId } from '@/lib/orders'
+import { encodeOrderRef } from '@/lib/orderRef'
+import { generateOrderId } from '@/lib/orders'
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,16 +14,15 @@ export async function POST(request: NextRequest) {
 
     const orderId = generateOrderId()
 
-    createOrderRecord({
+    const orderRef = encodeOrderRef({
       orderId,
-      service: serviceId,
-      link,
+      serviceId,
       quantity,
-      email: contactType === 'email' ? contact : '',
-      whatsapp: contactType === 'whatsapp' ? contact : '',
       contactType: contactType || 'email',
-      status: 'pending',
-      createdAt: new Date().toISOString(),
+      contact,
+      link,
+      serviceName,
+      price,
     })
 
     const isDemo = process.env.NEXT_PUBLIC_DEMO_MODE === 'true' || !process.env.MERCADO_PAGO_ACCESS_TOKEN
@@ -34,14 +34,14 @@ export async function POST(request: NextRequest) {
         await fetch(`${appUrl}/api/notify`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ orderId, serviceName, quantity, price, contact, contactType, link }),
+          body: JSON.stringify({ orderId, serviceName, quantity, price, contact, contactType, link, serviceId }),
         })
       } catch (e) {
         console.log('Demo notification skipped:', e)
       }
 
       return NextResponse.json({
-        checkoutUrl: `${appUrl}/success?order=${orderId}&demo=true`,
+        checkoutUrl: `${appUrl}/success?order=${orderId}&demo=true&value=${price}`,
         orderId,
         demo: true,
       })
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
       title: `VOLT Agência - ${serviceName}`,
       quantity: 1,
       unitPrice: price,
-      orderId,
+      externalReference: orderRef,
       email: contactType === 'email' ? contact : undefined,
     })
 

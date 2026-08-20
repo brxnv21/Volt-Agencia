@@ -1,6 +1,7 @@
 'use client'
 
 import { ServiceOption } from '@/types'
+import { trackViewContent } from '@/components/MetaPixel'
 
 interface ServiceCardProps {
   option: ServiceOption
@@ -9,6 +10,7 @@ interface ServiceCardProps {
 
 export default function ServiceCard({ option, index }: ServiceCardProps) {
   const handleBuy = () => {
+    trackViewContent(option.name, option.price)
     const params = new URLSearchParams({
       service: String(option.serviceId),
       qty: String(option.quantity),

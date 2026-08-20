@@ -7,6 +7,7 @@ import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import CountdownTimer from '@/components/CountdownTimer'
 import { Suspense } from 'react'
+import { trackInitiateCheckout } from '@/components/MetaPixel'
 
 const maleNames = [
   'Lucas M.', 'Pedro H.', 'Bruno F.', 'Rafael O.', 'Thiago B.',
@@ -72,13 +73,6 @@ function generateRandomSale(): SimulatedSale {
   }
 }
 
-function getServicePlaceholder(serviceId: number): string {
-  if (String(serviceId).startsWith('3') || serviceId >= 370 && serviceId <= 399) {
-    return 'https://instagram.com/seuusuario'
-  }
-  return 'https://instagram.com/p/SEU_POST'
-}
-
 function getServiceHint(categoryId: string): { label: string; placeholder: string; hint: string } {
   switch (categoryId) {
     case 'seguidores':
@@ -91,27 +85,21 @@ function getServiceHint(categoryId: string): { label: string; placeholder: strin
       return {
         label: 'Link da publicação',
         placeholder: 'https://instagram.com/p/SEU_POST',
-        hint: 'A publicação deve estar no perfil público',
+        hint: 'Cole o link da postagem que quer receber curtidas',
       }
-    case 'views':
+    case 'visualizacoes':
       return {
-        label: 'Link do Reels ou Story',
+        label: 'Link do Reels, Story ou Post',
         placeholder: 'https://instagram.com/reel/SEU_REELS',
-        hint: 'O Reels ou Story deve estar acessível publicamente',
+        hint: 'Cole o link do Reels, Story ou Post que quer receber visualizações',
       }
     case 'comentarios':
       return {
         label: 'Link da publicação',
         placeholder: 'https://instagram.com/p/SEU_POST',
-        hint: 'A publicação deve estar no perfil público',
+        hint: 'Cole o link da postagem que quer receber comentários',
       }
-    case 'compartilhamentos':
-      return {
-        label: 'Link da publicação',
-        placeholder: 'https://instagram.com/p/SEU_POST',
-        hint: 'A publicação deve estar no perfil público',
-      }
-    case 'alcance':
+    case 'extras':
       return {
         label: 'Link do perfil',
         placeholder: 'https://instagram.com/seuusuario',
@@ -199,6 +187,15 @@ function CheckoutContent() {
   useEffect(() => {
     setMounted(true)
     setViewers(Math.floor(Math.random() * 20) + 8)
+    trackInitiateCheckout(price)
+
+    const savedLink = localStorage.getItem('volt_link') || ''
+    const savedContactType = localStorage.getItem('volt_contact_type') as 'whatsapp' | 'email' | null
+    const savedContact = localStorage.getItem('volt_contact') || ''
+
+    if (savedLink) setLink(savedLink)
+    if (savedContactType) setContactType(savedContactType)
+    if (savedContact) setContact(savedContact.replace('+55', ''))
 
     const saleInterval = setInterval(() => {
       const sale = generateRandomSale()
@@ -216,6 +213,10 @@ function CheckoutContent() {
       clearInterval(viewerInterval)
     }
   }, [])
+
+  const saveToStorage = (key: string, value: string) => {
+    localStorage.setItem(key, value)
+  }
 
   if (!selectedService || !selectedCategory) {
     return (
@@ -261,8 +262,7 @@ function CheckoutContent() {
     }
     if (type === 'whatsapp') {
       const digits = value.replace(/\D/g, '')
-      if (digits.length < 10 || digits.length > 13) return 'Informe um WhatsApp válido com DDD'
-      if (!digits.startsWith('55')) return 'Informe o WhatsApp com código do país (55)'
+      if (digits.length < 8 || digits.length > 11) return 'Informe um número válido com DDD'
     }
     return null
   }
@@ -280,6 +280,12 @@ function CheckoutContent() {
     let cleanLink = link.trim()
     if (!cleanLink.startsWith('http')) cleanLink = 'https://' + cleanLink
 
+    const fullPhone = contactType === 'whatsapp' ? '+55' + contact.replace(/\D/g, '') : contact.trim()
+
+    localStorage.setItem('volt_link', cleanLink)
+    localStorage.setItem('volt_contact_type', contactType)
+    localStorage.setItem('volt_contact', contactType === 'whatsapp' ? '+55' + contact.replace(/\D/g, '') : contact.trim())
+
     setLoading(true)
 
     try {
@@ -291,7 +297,7 @@ function CheckoutContent() {
           quantity: qty,
           price,
           link: cleanLink,
-          contact: contact.trim(),
+          contact: fullPhone,
           contactType,
           serviceName: selectedService!.name,
         }),
@@ -318,10 +324,9 @@ function CheckoutContent() {
     switch (categoryId) {
       case 'seguidores': return 'Seguidores reais com entrega gradual. Perfil público obrigatório.'
       case 'curtidas': return 'Curtidas de contas reais para impulsionar seu engajamento.'
-      case 'views': return 'Visualizações orgânicas para aumentar o alcance do seu conteúdo.'
+      case 'visualizacoes': return 'Visualizações orgânicas para aumentar o alcance do seu conteúdo.'
       case 'comentarios': return 'Comentários personalizados relevantes para sua publicação.'
-      case 'compartilhamentos': return 'Compartilhamentos reais para ampliar seu alcance.'
-      case 'alcance': return 'Alcance e impressões para aumentar a visibilidade do perfil.'
+      case 'extras': return 'Alcance, impressões e compartilhamentos para ampliar seu perfil.'
       default: return 'Serviço de alta qualidade com entrega garantida.'
     }
   }
@@ -410,7 +415,7 @@ function CheckoutContent() {
                 <input
                   type="text"
                   value={link}
-                  onChange={(e) => setLink(e.target.value)}
+                  onChange={(e) => { setLink(e.target.value); saveToStorage('volt_link', e.target.value) }}
                   placeholder={serviceHint?.placeholder || 'https://instagram.com/seuusuario'}
                   className="w-full bg-volt-dark border border-volt-border rounded-xl px-3 py-2.5 sm:px-4 sm:py-3 text-white text-sm placeholder:text-volt-muted/50 focus:outline-none focus:border-volt-primary/50 transition-colors"
                 />
@@ -446,18 +451,21 @@ function CheckoutContent() {
                   </button>
                 </div>
                 {contactType === 'whatsapp' ? (
-                  <input
-                    type="tel"
-                    value={contact}
-                    onChange={(e) => setContact(e.target.value)}
-                    placeholder="(27) 99999-9999"
-                    className="w-full bg-volt-dark border border-volt-border rounded-xl px-3 py-2.5 sm:px-4 sm:py-3 text-white text-sm placeholder:text-volt-muted/50 focus:outline-none focus:border-volt-primary/50 transition-colors"
-                  />
+                  <div className="flex items-center">
+                    <span className="bg-volt-card border border-volt-border border-r-0 rounded-l-xl px-3 py-2.5 sm:px-4 sm:py-3 text-volt-muted text-sm">+55</span>
+                    <input
+                      type="tel"
+                      value={contact}
+                      onChange={(e) => { setContact(e.target.value); saveToStorage('volt_contact', '+55' + e.target.value.replace(/\D/g, '')) }}
+                      placeholder="(27) 99999-9999"
+                      className="w-full bg-volt-dark border border-volt-border rounded-r-xl px-3 py-2.5 sm:px-4 sm:py-3 text-white text-sm placeholder:text-volt-muted/50 focus:outline-none focus:border-volt-primary/50 transition-colors"
+                    />
+                  </div>
                 ) : (
                   <input
                     type="email"
                     value={contact}
-                    onChange={(e) => setContact(e.target.value)}
+                    onChange={(e) => { setContact(e.target.value); saveToStorage('volt_contact', e.target.value) }}
                     placeholder="seu@email.com"
                     className="w-full bg-volt-dark border border-volt-border rounded-xl px-3 py-2.5 sm:px-4 sm:py-3 text-white text-sm placeholder:text-volt-muted/50 focus:outline-none focus:border-volt-primary/50 transition-colors"
                   />
@@ -502,7 +510,7 @@ function CheckoutContent() {
                   <span className="text-volt-primary">⚡</span> Entrega iniciada em até 15 minutos
                 </div>
                 <div className="flex items-center gap-2 text-volt-muted text-[11px] sm:text-xs">
-                  <span className="text-volt-primary">💳</span> PIX, cartão de crédito ou boleto
+                  <span className="text-volt-primary">💳</span> PIX ou cartão de crédito
                 </div>
               </div>
             </form>
@@ -575,7 +583,7 @@ function CheckoutContent() {
 
           <div className="mt-5 sm:mt-6 text-center space-y-2 sm:space-y-3">
             <p className="text-volt-muted text-[10px] sm:text-xs">
-              Pague com PIX, cartão ou boleto via Mercado Pago
+              Pague com PIX ou cartão de crédito via Mercado Pago
             </p>
           </div>
         </div>

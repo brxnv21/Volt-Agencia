@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import { PixelInit } from '@/components/MetaPixel'
+import PixelPageViewWrapper from '@/components/PixelPageViewWrapper'
 
 export const metadata: Metadata = {
   title: 'VOLT Agência | Impulsione seu Instagram',
@@ -19,7 +21,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-BR">
-      <body>{children}</body>
+      <head>
+        <PixelInit />
+      </head>
+      <body>
+        <PixelPageViewWrapper />
+        {children}
+      </body>
     </html>
   )
 }

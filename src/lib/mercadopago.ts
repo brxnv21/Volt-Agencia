@@ -8,7 +8,8 @@ export async function createPreference(params: {
   title: string
   quantity: number
   unitPrice: number
-  orderId: string
+  orderId?: string
+  externalReference?: string
   email?: string
 }) {
   const preference = new Preference(client)
@@ -22,7 +23,7 @@ export async function createPreference(params: {
     body: {
       items: [
         {
-          id: params.orderId,
+          id: params.orderId || params.externalReference || 'order',
           title: params.title,
           quantity: params.quantity,
           unit_price: params.unitPrice,
@@ -30,15 +31,17 @@ export async function createPreference(params: {
         },
       ],
       ...(Object.keys(payer).length > 0 ? { payer } : {}),
-      external_reference: params.orderId,
+      external_reference: params.externalReference || params.orderId || '',
       back_urls: {
         success: `${process.env.NEXT_PUBLIC_APP_URL}/success`,
         pending: `${process.env.NEXT_PUBLIC_APP_URL}/success`,
         failure: `${process.env.NEXT_PUBLIC_APP_URL}/checkout`,
       },
       auto_return: 'approved',
+      binary_mode: true,
       payment_methods: {
         installments: 1,
+        excluded_payment_types: [{ id: 'debit_card' }, { id: 'ticket' }],
       },
     },
   })
