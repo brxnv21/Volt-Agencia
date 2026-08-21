@@ -17,6 +17,7 @@ interface Payment {
   contact: string
   contactType: string
   price: number
+  turboIds: number[]
 }
 
 interface TurboOrderStatus {
@@ -141,6 +142,7 @@ export default function AdminPage() {
   const [turboOrders, setTurboOrders] = useState<Record<string, TurboOrderStatus>>({})
   const [turboLoading, setTurboLoading] = useState(false)
   const [turboBalance, setTurboBalance] = useState<string | null>(null)
+  const [lowBalanceNotified, setLowBalanceNotified] = useState(false)
   const [manualOrderId, setManualOrderId] = useState('')
   const [timeFilter, setTimeFilter] = useState('30d')
   const prevCountRef = useRef(0)
@@ -198,6 +200,31 @@ export default function AdminPage() {
       }
       prevCountRef.current = newPayments.length
       setPrevCount(newPayments.length)
+
+      try {
+        const balRes = await fetch(`/api/admin/turbo?key=${k}&action=balance`)
+        const balData = await balRes.json()
+        if (balData.balance) {
+          const bal = balData.balance.balance
+          setTurboBalance(bal)
+          const balNum = parseFloat(bal)
+          if (!isNaN(balNum) && balNum < 7 && !lowBalanceNotified) {
+            setLowBalanceNotified(true)
+            if ('Notification' in window && Notification.permission === 'granted') {
+              new Notification('⚠️ Saldo baixo Turbosociais!', {
+                body: `Saldo: R$ ${bal}. Recarga urgente necessária!`,
+                icon: '/logo.jpg',
+              })
+            }
+            if ('vibrate' in navigator) navigator.vibrate([500, 200, 500, 200, 500])
+          }
+          if (!isNaN(balNum) && balNum >= 7) {
+            setLowBalanceNotified(false)
+          }
+        }
+      } catch {
+        // balance check is non-critical
+      }
     } catch {
       setError('Erro de conexão')
     } finally {
@@ -208,17 +235,36 @@ export default function AdminPage() {
   const fetchTurboOrders = useCallback(async () => {
     setTurboLoading(true)
     try {
-      const [balRes, ordersRes] = await Promise.all([
-        fetch(`/api/admin/turbo?key=${key}&action=balance`),
-        payments.length > 0
-          ? fetch(`/api/admin/turbo?key=${key}&action=orders&ids=${payments.slice(0, 20).map(p => p.id.split('_')[1] || p.id).join(',')}`)
-          : null,
-      ])
-
+      const balRes = await fetch(`/api/admin/turbo?key=${key}&action=balance`)
       const balData = await balRes.json()
-      if (balData.balance) setTurboBalance(balData.balance.balance)
+      if (balData.balance) {
+        const bal = balData.balance.balance
+        setTurboBalance(bal)
 
-      if (ordersRes) {
+        const balNum = parseFloat(bal)
+        if (!isNaN(balNum) && balNum < 7 && !lowBalanceNotified) {
+          setLowBalanceNotified(true)
+          if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification('⚠️ Saldo baixo Turbosociais!', {
+              body: `Saldo: R$ ${bal}. Recarga urgente necessária!`,
+              icon: '/logo.jpg',
+            })
+          }
+          if ('vibrate' in navigator) navigator.vibrate([500, 200, 500, 200, 500])
+        }
+        if (!isNaN(balNum) && balNum >= 7) {
+          setLowBalanceNotified(false)
+        }
+      }
+
+      const allTurboIds = payments
+        .filter(p => p.status === 'approved' && p.turboIds && p.turboIds.length > 0)
+        .flatMap(p => p.turboIds)
+
+      const uniqueIds = [...new Set(allTurboIds)]
+
+      if (uniqueIds.length > 0) {
+        const ordersRes = await fetch(`/api/admin/turbo?key=${key}&action=orders&ids=${uniqueIds.join(',')}`)
         const ordersData = await ordersRes.json()
         if (ordersData.orders) setTurboOrders(ordersData.orders)
       }
@@ -227,7 +273,7 @@ export default function AdminPage() {
     } finally {
       setTurboLoading(false)
     }
-  }, [key, payments])
+  }, [key, payments, lowBalanceNotified])
 
   const fetchSingleOrder = async () => {
     if (!manualOrderId) return
@@ -251,7 +297,7 @@ export default function AdminPage() {
       const interval = setInterval(fetchTurboOrders, 30000)
       return () => clearInterval(interval)
     }
-  }, [authenticated, tab, fetchTurboOrders])
+  }, [authenticated, tab, fetchTurboOrders, payments.length])
 
   useEffect(() => {
     if (authenticated) {
@@ -377,6 +423,24 @@ export default function AdminPage() {
             </button>
           ))}
         </div>
+
+        {turboBalance && parseFloat(turboBalance) < 7 && (
+          <div className="bg-red-900/40 border border-red-500/50 rounded-xl p-3 mb-4 flex items-center gap-3">
+            <span className="text-xl sm:text-2xl">⚠️</span>
+            <div className="flex-1">
+              <p className="text-red-300 font-bold text-xs sm:text-sm">Saldo Turbosociais baixo — R$ {parseFloat(turboBalance).toFixed(2)}</p>
+              <p className="text-red-400/70 text-[10px] sm:text-xs">Recarga urgente para manter entregas automáticas.</p>
+            </div>
+            <a
+              href="https://turbosociais.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-1.5 bg-red-500 hover:bg-red-400 text-white rounded-lg text-[10px] sm:text-xs font-bold transition whitespace-nowrap"
+            >
+              Recarregar
+            </a>
+          </div>
+        )}
 
         {tab === 'vendas' && (
           <>
@@ -554,21 +618,42 @@ export default function AdminPage() {
 
         {tab === 'tracking' && (
           <>
+            {turboBalance && parseFloat(turboBalance) < 7 && (
+              <div className="bg-red-900/40 border border-red-500/50 rounded-xl p-4 mb-4 flex items-center gap-3">
+                <span className="text-2xl">⚠️</span>
+                <div className="flex-1">
+                  <p className="text-red-300 font-bold text-sm">Saldo baixo no Turbosociais!</p>
+                  <p className="text-red-400/80 text-xs">Saldo atual: R$ {parseFloat(turboBalance).toFixed(2)}. Recarga urgente necessária para manter as entregas.</p>
+                </div>
+                <a
+                  href="https://turbosociais.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-2 bg-red-500 hover:bg-red-400 text-white rounded-lg text-xs font-bold transition whitespace-nowrap"
+                >
+                  Recarregar
+                </a>
+              </div>
+            )}
+
             <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 mb-4">
               <div className="flex items-center justify-between mb-3">
                 <div>
                   <p className="text-white text-sm font-medium">Saldo Turbosociais</p>
-                  <p className={`text-2xl font-bold ${turboBalance && parseFloat(turboBalance) > 1 ? 'text-green-400' : 'text-red-400'}`}>
+                  <p className={`text-2xl font-bold ${turboBalance && parseFloat(turboBalance) > 7 ? 'text-green-400' : turboBalance && parseFloat(turboBalance) > 0 ? 'text-yellow-400' : 'text-red-400'}`}>
                     R$ {turboBalance || '0,00'}
                   </p>
                 </div>
-                <button
-                  onClick={fetchTurboOrders}
-                  disabled={turboLoading}
-                  className="px-4 py-2 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-lg text-xs font-medium hover:bg-blue-500/30 transition disabled:opacity-50"
-                >
-                  {turboLoading ? '...' : '🔄 Atualizar'}
-                </button>
+                <div className="text-right">
+                  <p className="text-gray-500 text-[10px] mb-1">{payments.filter(p => p.status === 'approved').length} pedidos aprovados</p>
+                  <button
+                    onClick={fetchTurboOrders}
+                    disabled={turboLoading}
+                    className="px-4 py-2 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-lg text-xs font-medium hover:bg-blue-500/30 transition disabled:opacity-50"
+                  >
+                    {turboLoading ? '...' : '🔄 Atualizar'}
+                  </button>
+                </div>
               </div>
 
               <div className="flex gap-2">

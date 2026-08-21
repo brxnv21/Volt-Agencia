@@ -216,6 +216,23 @@ export async function POST(request: NextRequest) {
       }
 
       if (allTurboIds.length > 0) {
+        try {
+          await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${process.env.MERCADO_PAGO_ACCESS_TOKEN}`,
+            },
+            body: JSON.stringify({
+              metadata: {
+                turbo_ids: allTurboIds.join(','),
+              },
+            }),
+          })
+        } catch (metaErr) {
+          console.error('[WEBHOOK] Failed to update payment metadata:', metaErr)
+        }
+
         await sendSuccessEmail({
           orderId: order.orderId,
           serviceName: order.serviceName,

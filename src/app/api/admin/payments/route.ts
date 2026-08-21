@@ -26,6 +26,9 @@ export async function GET(request: NextRequest) {
 
     const payments = (result.results || []).map((p: any) => {
       const order = decodeOrderRef(p.external_reference || '')
+      const turboIds = p.metadata?.turbo_ids
+        ? String(p.metadata.turbo_ids).split(',').map(Number).filter(n => !isNaN(n))
+        : []
       return {
         id: p.id,
         status: p.status,
@@ -40,6 +43,7 @@ export async function GET(request: NextRequest) {
         contact: order?.contact || '',
         contactType: order?.contactType || '',
         price: order?.price || 0,
+        turboIds,
       }
     })
 
