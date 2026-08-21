@@ -104,8 +104,8 @@ export default function SuccessContent({
         </div>
       </div>
 
-      <Footer />
-      <WhatsAppButton />
+      <Footer track={false} />
+      <WhatsAppButton track={false} />
     </div>
   )
 }

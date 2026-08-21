@@ -99,3 +99,8 @@ export function trackLead(value?: number) {
     ...(value ? { value, currency: 'BRL' } : {}),
   })
 }
+
+export function trackContact(source: string) {
+  if (typeof window === 'undefined' || !window.fbq) return
+  window.fbq('track', 'Contact', { source })
+}

@@ -1,6 +1,8 @@
 'use client'
 
-export default function Footer() {
+import { trackContact } from './MetaPixel'
+
+export default function Footer({ track = true }: { track?: boolean }) {
   const scrollTo = (id: string) => {
     if (window.location.pathname !== '/') {
       window.location.href = `/#${id}`
@@ -43,7 +45,7 @@ export default function Footer() {
             <h4 className="text-white font-semibold text-sm mb-4">Suporte</h4>
             <ul className="space-y-2 text-volt-muted text-sm">
               <li>
-                <a href="https://wa.me/5527996115482?text=Ol%C3%A1!%20Vim%20pelo%20site%20da%20VOLT%20Ag%C3%AAncia." target="_blank" rel="noopener noreferrer" className="hover:text-green-400 transition-colors">
+                <a href="https://wa.me/5527996115482?text=Ol%C3%A1!%20Vim%20pelo%20site%20da%20VOLT%20Ag%C3%AAncia." target="_blank" rel="noopener noreferrer" onClick={() => { if (track) trackContact('footer') }} className="hover:text-green-400 transition-colors">
                   WhatsApp
                 </a>
               </li>

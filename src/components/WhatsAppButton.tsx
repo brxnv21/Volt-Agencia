@@ -1,6 +1,8 @@
 'use client'
 
-export default function WhatsAppButton() {
+import { trackContact } from './MetaPixel'
+
+export default function WhatsAppButton({ track = true }: { track?: boolean }) {
   const phone = '5527996115482'
   const message = encodeURIComponent('Olá! Vim pelo site da VOLT Agência. Preciso de ajuda com um pedido.')
   const url = `https://wa.me/${phone}?text=${message}`
@@ -10,6 +12,7 @@ export default function WhatsAppButton() {
       href={url}
       target="_blank"
       rel="noopener noreferrer"
+      onClick={() => { if (track) trackContact('botao-flutuante') }}
       className="fixed bottom-6 right-6 z-50 group"
       aria-label="Fale conosco no WhatsApp"
     >

@@ -18,6 +18,8 @@ const CATEGORIES: Record<string, { icon: string; color: string }> = {
   'PIX': { icon: '⚡', color: 'text-green-400' },
   'Cartão': { icon: '💳', color: 'text-yellow-400' },
   'Saldo Inicial': { icon: '💰', color: 'text-green-300' },
+  'Aporte': { icon: '💵', color: 'text-emerald-300' },
+  'Venda': { icon: '🤝', color: 'text-green-400' },
   'Recarga Turbo': { icon: '🔄', color: 'text-purple-300' },
   'Withdrawal': { icon: '🏦', color: 'text-orange-400' },
   'Meta Ads': { icon: '📢', color: 'text-blue-300' },
@@ -36,25 +38,49 @@ const INITIAL_ENTRIES: CashEntry[] = [
     id: 'inv-turbo-1',
     date: '2026-08-20',
     type: 'investimento',
-    description: 'Recarga Turbosociais (saldo para pedidos)',
+    description: 'Recarga Turbosociais — saldo para pedidos',
     amount: 35,
     category: 'Turbosociais',
   },
   {
-    id: 'inv-fb-1',
+    id: 'sale-site-1',
     date: '2026-08-20',
-    type: 'investimento',
-    description: 'Facebook Ads — campanha inicial (R$20/dia x 5 dias)',
-    amount: 100,
-    category: 'Facebook Ads',
+    type: 'entrada',
+    description: 'Venda site — 3.000 seguidores (Pix MP)',
+    amount: 39.9,
+    category: 'Venda',
   },
   {
     id: 'charge-fb-1',
     date: '2026-08-21',
     type: 'saida',
-    description: 'Cobrança Facebook Ads (amanhã)',
+    description: 'Cobrança cartão — Meta Ads (limite de faturamento batido)',
     amount: 30,
     category: 'Meta Ads',
+  },
+  {
+    id: 'inv-turbo-2',
+    date: '2026-08-21',
+    type: 'investimento',
+    description: 'Recarga Turbosociais — pedido 3.000 seguidores BR (venda WhatsApp)',
+    amount: 50,
+    category: 'Turbosociais',
+  },
+  {
+    id: 'sale-wa-mp-1',
+    date: '2026-08-21',
+    type: 'entrada',
+    description: 'Sobra da venda WhatsApp (3.000 BR) enviada ao Mercado Pago',
+    amount: 38.19,
+    category: 'Mercado Pago',
+  },
+  {
+    id: 'aporte-1',
+    date: '2026-08-21',
+    type: 'entrada',
+    description: 'Aporte do dono no caixa da operação',
+    amount: 49,
+    category: 'Aporte',
   },
 ]
 
@@ -78,7 +104,7 @@ export default function CaixaPage() {
   })
 
   useEffect(() => {
-    const saved = localStorage.getItem('volt_caixa_entries')
+    const saved = localStorage.getItem('volt_caixa_entries_v2')
     if (saved) {
       try {
         setEntries(JSON.parse(saved))
@@ -96,7 +122,7 @@ export default function CaixaPage() {
 
   const saveEntries = (newEntries: CashEntry[]) => {
     setEntries(newEntries)
-    localStorage.setItem('volt_caixa_entries', JSON.stringify(newEntries))
+    localStorage.setItem('volt_caixa_entries_v2', JSON.stringify(newEntries))
   }
 
   const handleLogin = (e: React.FormEvent) => {
