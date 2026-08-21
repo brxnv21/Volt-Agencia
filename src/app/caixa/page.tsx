@@ -9,95 +9,134 @@ interface CashEntry {
   description: string
   amount: number
   category: string
+  source?: 'mp' | 'manual'
 }
 
-const CATEGORIES: Record<string, { icon: string; color: string }> = {
-  'Mercado Pago': { icon: '💳', color: 'text-blue-400' },
-  'Turbosociais': { icon: '🔄', color: 'text-purple-400' },
-  'Facebook Ads': { icon: '📢', color: 'text-blue-300' },
-  'PIX': { icon: '⚡', color: 'text-green-400' },
-  'Cartão': { icon: '💳', color: 'text-yellow-400' },
-  'Saldo Inicial': { icon: '💰', color: 'text-green-300' },
-  'Recarga Turbo': { icon: '🔄', color: 'text-purple-300' },
-  'Withdrawal': { icon: '🏦', color: 'text-orange-400' },
-  'Meta Ads': { icon: '📢', color: 'text-blue-300' },
+const CATEGORIES: Record<string, string> = {
+  'Mercado Pago': '💳',
+  Turbosociais: '🔄',
+  'Facebook Ads': '📢',
+  PIX: '⚡',
+  'Cartão': '💳',
+  'Saldo Inicial': '💰',
+  Withdrawal: '🏦',
+  'Meta Ads': '📢',
 }
 
-const INITIAL_ENTRIES: CashEntry[] = [
-  {
-    id: 'init-1',
-    date: '2026-08-20',
-    type: 'entrada',
-    description: 'Saldo em caixa (dinheiro)',
-    amount: 80,
-    category: 'Saldo Inicial',
-  },
-  {
-    id: 'inv-turbo-1',
-    date: '2026-08-20',
-    type: 'investimento',
-    description: 'Recarga Turbosociais (saldo para pedidos)',
-    amount: 35,
-    category: 'Turbosociais',
-  },
-  {
-    id: 'inv-fb-1',
-    date: '2026-08-20',
-    type: 'investimento',
-    description: 'Facebook Ads — campanha inicial (R$20/dia x 5 dias)',
-    amount: 100,
-    category: 'Facebook Ads',
-  },
-  {
-    id: 'charge-fb-1',
-    date: '2026-08-21',
-    type: 'saida',
-    description: 'Cobrança Facebook Ads (amanhã)',
-    amount: 30,
-    category: 'Meta Ads',
-  },
+const TYPE_META = {
+  entrada: { label: 'Entrada', text: 'text-green-400', border: 'border-green-500/30', bar: 'bg-green-500' },
+  saida: { label: 'Saída', text: 'text-red-400', border: 'border-red-500/30', bar: 'bg-red-500' },
+  investimento: { label: 'Investimento', text: 'text-purple-400', border: 'border-purple-500/30', bar: 'bg-purple-500' },
+} as const
+
+const FILTERS = [
+  { d: 7, label: '7d' },
+  { d: 15, label: '15d' },
+  { d: 30, label: '30d' },
+  { d: 60, label: '60d' },
+  { d: 90, label: '90d' },
+  { d: 0, label: 'Tudo' },
 ]
 
-function generateId(): string {
-  return `entry-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+const DEFAULT_MANUAL: CashEntry[] = [
+  { id: 'def-turbo', date: '2026-08-20', type: 'investimento', description: 'Recarga Turbosociais', amount: 35, category: 'Turbosociais', source: 'manual' },
+  { id: 'def-fbads', date: '2026-08-20', type: 'investimento', description: 'Facebook Ads - campanha inicial', amount: 100, category: 'Facebook Ads', source: 'manual' },
+  { id: 'def-fbcob', date: '2026-08-20', type: 'saida', description: 'Cobranca Facebook Ads', amount: 30, category: 'Meta Ads', source: 'manual' },
+]
+
+function Bar({ val, max, cls }: { val: number; max: number; cls: string }) {
+  return (
+    <div
+      className={`w-1.5 rounded-t ${val > 0 ? cls : ''}`}
+      style={{ height: `${(val / max) * 100}%`, minHeight: val > 0 ? 2 : 0 }}
+      title={`R$ ${val.toFixed(2)}`}
+    />
+  )
 }
 
 export default function CaixaPage() {
-  const [entries, setEntries] = useState<CashEntry[]>([])
+  const [manual, setManual] = useState<CashEntry[]>([])
+  const [mpPayments, setMpPayments] = useState<CashEntry[]>([])
+  const [loadingMp, setLoadingMp] = useState(true)
   const [authenticated, setAuthenticated] = useState(false)
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [rangeDays, setRangeDays] = useState(30)
   const [form, setForm] = useState({
     date: new Date().toISOString().slice(0, 10),
-    type: 'entrada' as CashEntry['type'],
+    type: 'saida' as CashEntry['type'],
     description: '',
     amount: '',
-    category: 'Mercado Pago',
+    category: 'Turbosociais',
   })
 
   useEffect(() => {
+    if (localStorage.getItem('volt_caixa_key') === 'volt2026') setAuthenticated(true)
     const saved = localStorage.getItem('volt_caixa_entries')
     if (saved) {
       try {
-        setEntries(JSON.parse(saved))
+        setManual(JSON.parse(saved))
       } catch {
-        setEntries(INITIAL_ENTRIES)
+        setManual(DEFAULT_MANUAL)
       }
     } else {
-      setEntries(INITIAL_ENTRIES)
+      setManual(DEFAULT_MANUAL)
     }
-    const pw = localStorage.getItem('volt_caixa_key')
-    if (pw === 'volt2026') {
-      setAuthenticated(true)
-    }
+    fetch('/api/admin/payments?key=volt2026&days=365')
+      .then(r => r.json())
+      .then(data => {
+        const list: CashEntry[] = (data.payments || [])
+          .filter((p: any) => p.status === 'approved')
+          .map((p: any) => ({
+            id: `mp-${p.id}`,
+            date: String(p.date || '').slice(0, 10),
+            type: 'entrada' as const,
+            description: p.serviceName && p.serviceName !== 'N/A' ? `${p.serviceName} - ${p.orderId}` : `Pedido ${p.orderId}`,
+            amount: Number(p.amount) || 0,
+            category: 'Mercado Pago',
+            source: 'mp' as const,
+          }))
+        setMpPayments(list)
+      })
+      .catch(() => {})
+      .finally(() => setLoadingMp(false))
   }, [])
 
-  const saveEntries = (newEntries: CashEntry[]) => {
-    setEntries(newEntries)
-    localStorage.setItem('volt_caixa_entries', JSON.stringify(newEntries))
+  const saveManual = (list: CashEntry[]) => {
+    setManual(list)
+    localStorage.setItem('volt_caixa_entries', JSON.stringify(list))
   }
+
+  const all = useMemo(
+    () => [...mpPayments, ...manual].sort((a, b) => b.date.localeCompare(a.date)),
+    [mpPayments, manual]
+  )
+
+  const filtered = useMemo(() => {
+    if (rangeDays === 0) return all
+    const cutoff = new Date(Date.now() - rangeDays * 86400000).toISOString().slice(0, 10)
+    return all.filter(e => e.date >= cutoff)
+  }, [all, rangeDays])
+
+  const sumBy = (t: CashEntry['type']) => filtered.filter(e => e.type === t).reduce((s, e) => s + e.amount, 0)
+  const totalEntradas = sumBy('entrada')
+  const totalSaidas = sumBy('saida')
+  const totalInvestimentos = sumBy('investimento')
+  const lucro = totalEntradas - totalSaidas - totalInvestimentos
+
+  const chartData = useMemo(() => {
+    const map: Record<string, { e: number; s: number; i: number }> = {}
+    for (const en of filtered) {
+      if (!map[en.date]) map[en.date] = { e: 0, s: 0, i: 0 }
+      if (en.type === 'entrada') map[en.date].e += en.amount
+      else if (en.type === 'saida') map[en.date].s += en.amount
+      else map[en.date].i += en.amount
+    }
+    return Object.entries(map).sort((a, b) => a[0].localeCompare(b[0]))
+  }, [filtered])
+  const maxBar = Math.max(1, ...chartData.flatMap(([, v]) => [v.e, v.s, v.i]))
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault()
@@ -110,69 +149,55 @@ export default function CaixaPage() {
     }
   }
 
-  const handleAdd = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!form.description || !form.amount) return
-    const amount = parseFloat(form.amount)
-    if (isNaN(amount) || amount <= 0) return
+  const resetForm = () => {
+    setEditingId(null)
+    setShowForm(false)
+    setForm({ date: new Date().toISOString().slice(0, 10), type: 'saida', description: '', amount: '', category: 'Turbosociais' })
+  }
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    const amount = parseFloat(form.amount)
+    if (!form.description || isNaN(amount) || amount <= 0) return
     if (editingId) {
-      saveEntries(entries.map(en =>
+      saveManual(manual.map(en =>
         en.id === editingId
           ? { ...en, date: form.date, type: form.type, description: form.description, amount, category: form.category }
           : en
       ))
-      setEditingId(null)
     } else {
-      saveEntries([
-        ...entries,
-        { id: generateId(), date: form.date, type: form.type, description: form.description, amount, category: form.category },
+      saveManual([
+        ...manual,
+        { id: `m-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, date: form.date, type: form.type, description: form.description, amount, category: form.category, source: 'manual' },
       ])
     }
-    setForm({ date: new Date().toISOString().slice(0, 10), type: 'entrada', description: '', amount: '', category: 'Mercado Pago' })
-    setShowForm(false)
+    resetForm()
   }
 
-  const handleEdit = (entry: CashEntry) => {
-    setForm({
-      date: entry.date,
-      type: entry.type,
-      description: entry.description,
-      amount: String(entry.amount),
-      category: entry.category,
-    })
-    setEditingId(entry.id)
+  const handleEdit = (en: CashEntry) => {
+    setForm({ date: en.date, type: en.type, description: en.description, amount: String(en.amount), category: en.category })
+    setEditingId(en.id)
     setShowForm(true)
   }
 
   const handleDelete = (id: string) => {
-    if (confirm('Remover este item?')) {
-      saveEntries(entries.filter(e => e.id !== id))
-    }
+    if (confirm('Remover este item?')) saveManual(manual.filter(en => en.id !== id))
   }
 
-  const sorted = useMemo(() => [...entries].sort((a, b) => b.date.localeCompare(a.date)), [entries])
-
-  const today = new Date().toISOString().slice(0, 10)
-  const todayEntries = useMemo(() => entries.filter(e => e.date === today), [entries, today])
-
-  const totalEntradas = useMemo(() =>
-    entries.filter(e => e.type === 'entrada').reduce((s, e) => s + e.amount, 0)
-  , [entries])
-
-  const totalSaidas = useMemo(() =>
-    entries.filter(e => e.type === 'saida').reduce((s, e) => s + e.amount, 0)
-  , [entries])
-
-  const totalInvestimentos = useMemo(() =>
-    entries.filter(e => e.type === 'investimento').reduce((s, e) => s + e.amount, 0)
-  , [entries])
-
-  const saldoDisponivel = totalEntradas - totalSaidas
-
-  const todayEntradas = todayEntries.filter(e => e.type === 'entrada').reduce((s, e) => s + e.amount, 0)
-  const todaySaidas = todayEntries.filter(e => e.type === 'saida').reduce((s, e) => s + e.amount, 0)
-  const todayInvestimentos = todayEntries.filter(e => e.type === 'investimento').reduce((s, e) => s + e.amount, 0)
+  const exportCsv = () => {
+    const rows: string[][] = [['Data', 'Tipo', 'Categoria', 'Descricao', 'Valor']]
+    for (const en of [...filtered].sort((a, b) => a.date.localeCompare(b.date))) {
+      rows.push([en.date, TYPE_META[en.type].label, en.category, en.description.replace(/;/g, ','), en.amount.toFixed(2).replace('.', ',')])
+    }
+    const csv = '\uFEFF' + rows.map(r => r.join(';')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `volt-caixa-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   if (!authenticated) {
     return (
@@ -207,7 +232,7 @@ export default function CaixaPage() {
   return (
     <div className="min-h-screen bg-gray-950 p-3 sm:p-4 md:p-8">
       <div className="max-w-4xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
           <div className="flex items-center gap-3">
             <img src="/logo.jpg" alt="VOLT" className="w-8 h-8 rounded-full" />
             <div>
@@ -216,92 +241,60 @@ export default function CaixaPage() {
             </div>
           </div>
           <div className="flex gap-2">
-            <button
-              onClick={() => { setEditingId(null); setForm({ date: new Date().toISOString().slice(0, 10), type: 'entrada', description: '', amount: '', category: 'Mercado Pago' }); setShowForm(!showForm) }}
-              className="px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded-lg text-xs font-medium transition"
-            >
+            <button onClick={() => { setEditingId(null); setForm({ ...form, type: 'saida', description: '', amount: '' }); setShowForm(!showForm) }} className="px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded-lg text-xs font-medium transition">
               {showForm ? '✕' : '+ Novo'}
             </button>
-            <button
-              onClick={() => { setAuthenticated(false); localStorage.removeItem('volt_caixa_key') }}
-              className="px-3 py-1.5 bg-red-900/30 hover:bg-red-900/50 text-red-400 rounded-lg transition text-xs"
-            >
+            <button onClick={exportCsv} className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-xs transition">
+              ⬇ CSV
+            </button>
+            <button onClick={() => { setAuthenticated(false); localStorage.removeItem('volt_caixa_key') }} className="px-3 py-1.5 bg-red-900/30 hover:bg-red-900/50 text-red-400 rounded-lg transition text-xs">
               Sair
             </button>
           </div>
         </div>
 
+        {loadingMp && <p className="text-gray-500 text-xs mb-3">Carregando pagamentos Mercado Pago...</p>}
+
         {showForm && (
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 mb-4">
-            <h3 className="text-white text-sm font-medium mb-3">{editingId ? 'Editar item' : 'Novo item'}</h3>
-            <form onSubmit={handleAdd} className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
+            <h3 className="text-white text-sm font-medium mb-3">{editingId ? 'Editar item' : 'Nova saída / investimento'}</h3>
+            <form onSubmit={handleSubmit} className="space-y-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div>
                   <label className="text-gray-400 text-[10px] block mb-1">Data</label>
-                  <input
-                    type="date"
-                    value={form.date}
-                    onChange={(e) => setForm({ ...form, date: e.target.value })}
-                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-green-500"
-                  />
+                  <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-green-500" required />
                 </div>
                 <div>
                   <label className="text-gray-400 text-[10px] block mb-1">Tipo</label>
-                  <select
-                    value={form.type}
-                    onChange={(e) => setForm({ ...form, type: e.target.value as CashEntry['type'] })}
-                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-green-500"
-                  >
-                    <option value="entrada">Entrada</option>
+                  <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as CashEntry['type'] })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-green-500">
                     <option value="saida">Saída</option>
                     <option value="investimento">Investimento</option>
+                    <option value="entrada">Entrada</option>
                   </select>
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-gray-400 text-[10px] block mb-1">Categoria</label>
-                  <select
-                    value={form.category}
-                    onChange={(e) => setForm({ ...form, category: e.target.value })}
-                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-green-500"
-                  >
+                  <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-green-500">
                     {Object.keys(CATEGORIES).map(c => (
-                      <option key={c} value={c}>{CATEGORIES[c].icon} {c}</option>
+                      <option key={c} value={c}>{CATEGORIES[c]} {c}</option>
                     ))}
                   </select>
                 </div>
                 <div>
                   <label className="text-gray-400 text-[10px] block mb-1">Valor (R$)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={form.amount}
-                    onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                    placeholder="0,00"
-                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-600 focus:outline-none focus:border-green-500"
-                    required
-                  />
+                  <input type="number" step="0.01" min="0" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="0,00" className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-600 focus:outline-none focus:border-green-500" required />
                 </div>
               </div>
               <div>
                 <label className="text-gray-400 text-[10px] block mb-1">Descrição</label>
-                <input
-                  type="text"
-                  value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  placeholder="Ex: Recarga Turbosociais"
-                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-600 focus:outline-none focus:border-green-500"
-                  required
-                />
+                <input type="text" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Ex: Recarga Turbosociais" className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-600 focus:outline-none focus:border-green-500" required />
               </div>
               <div className="flex gap-2">
                 <button type="submit" className="flex-1 py-2 bg-green-600 hover:bg-green-500 text-white font-bold rounded-lg text-sm transition">
                   {editingId ? 'Salvar' : 'Adicionar'}
                 </button>
                 {editingId && (
-                  <button type="button" onClick={() => { setEditingId(null); setShowForm(false) }} className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-sm transition">
+                  <button type="button" onClick={resetForm} className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-sm transition">
                     Cancelar
                   </button>
                 )}
@@ -310,91 +303,98 @@ export default function CaixaPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+        <div className="flex flex-wrap gap-2 mb-4">
+          {FILTERS.map(f => (
+            <button
+              key={f.d}
+              onClick={() => setRangeDays(f.d)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${rangeDays === f.d ? 'bg-green-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
           <div className="bg-gray-900 border border-green-500/20 rounded-xl p-3 text-center">
-            <p className="text-gray-500 text-[10px] mb-1">Saldo Disponível</p>
-            <p className="text-xl sm:text-2xl font-bold text-green-400">
-              R$ {saldoDisponivel.toFixed(0)}
-            </p>
+            <p className="text-gray-500 text-[10px] mb-1">Total Entradas</p>
+            <p className="text-lg sm:text-2xl font-bold text-green-400">R$ {totalEntradas.toFixed(2)}</p>
           </div>
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-3 text-center">
-            <p className="text-gray-500 text-[10px] mb-1">Entradas Totais</p>
-            <p className="text-xl sm:text-2xl font-bold text-blue-400">R$ {totalEntradas.toFixed(0)}</p>
-          </div>
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-3 text-center">
-            <p className="text-gray-500 text-[10px] mb-1">Saídas Totais</p>
-            <p className="text-xl sm:text-2xl font-bold text-red-400">R$ {totalSaidas.toFixed(0)}</p>
+          <div className="bg-gray-900 border border-red-500/20 rounded-xl p-3 text-center">
+            <p className="text-gray-500 text-[10px] mb-1">Total Saídas</p>
+            <p className="text-lg sm:text-2xl font-bold text-red-400">R$ {totalSaidas.toFixed(2)}</p>
           </div>
           <div className="bg-gray-900 border border-purple-500/20 rounded-xl p-3 text-center">
             <p className="text-gray-500 text-[10px] mb-1">Investimentos</p>
-            <p className="text-xl sm:text-2xl font-bold text-purple-400">R$ {totalInvestimentos.toFixed(0)}</p>
+            <p className="text-lg sm:text-2xl font-bold text-purple-400">R$ {totalInvestimentos.toFixed(2)}</p>
+          </div>
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-3 text-center">
+            <p className="text-gray-500 text-[10px] mb-1">Lucro Líquido</p>
+            <p className={`text-lg sm:text-2xl font-bold ${lucro >= 0 ? 'text-white' : 'text-red-400'}`}>R$ {lucro.toFixed(2)}</p>
           </div>
         </div>
 
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 mb-6">
-          <h3 className="text-white text-sm font-medium mb-3">Hoje ({new Date().toLocaleDateString('pt-BR')})</h3>
-          <div className="grid grid-cols-3 gap-3">
-            <div className="bg-gray-800 rounded-lg p-3 text-center">
-              <p className="text-gray-500 text-[10px] mb-1">Entradas</p>
-              <p className="text-lg font-bold text-green-400">R$ {todayEntradas.toFixed(0)}</p>
-            </div>
-            <div className="bg-gray-800 rounded-lg p-3 text-center">
-              <p className="text-gray-500 text-[10px] mb-1">Saídas</p>
-              <p className="text-lg font-bold text-red-400">R$ {todaySaidas.toFixed(0)}</p>
-            </div>
-            <div className="bg-gray-800 rounded-lg p-3 text-center">
-              <p className="text-gray-500 text-[10px] mb-1">Investimentos</p>
-              <p className="text-lg font-bold text-purple-400">R$ {todayInvestimentos.toFixed(0)}</p>
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 mb-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-white text-sm font-medium">Diário</h3>
+            <div className="flex items-center gap-3 text-[10px] text-gray-500">
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> Entradas</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Saídas</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-purple-500 inline-block" /> Invest.</span>
             </div>
           </div>
+          {chartData.length === 0 ? (
+            <p className="text-gray-600 text-sm text-center py-8">Sem dados no período</p>
+          ) : (
+            <div className="flex items-end gap-1 h-40 overflow-x-auto pb-1">
+              {chartData.map(([day, v]) => (
+                <div key={day} className="flex-1 min-w-[24px] flex flex-col items-center gap-1">
+                  <div className="w-full h-32 flex items-end justify-center gap-[2px]">
+                    <Bar val={v.e} max={maxBar} cls="bg-green-500" />
+                    <Bar val={v.s} max={maxBar} cls="bg-red-500" />
+                    <Bar val={v.i} max={maxBar} cls="bg-purple-500" />
+                  </div>
+                  <span className="text-gray-600 text-[8px] whitespace-nowrap">{day.slice(8)}/{day.slice(5, 7)}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-          <h3 className="text-white text-sm font-medium mb-3">Movimentações</h3>
-          {sorted.length === 0 ? (
-            <p className="text-gray-600 text-sm text-center py-8">Nenhum registro</p>
+          <h3 className="text-white text-sm font-medium mb-3">Movimentações ({filtered.length})</h3>
+          {filtered.length === 0 ? (
+            <p className="text-gray-600 text-sm text-center py-8">Nenhum registro no período</p>
           ) : (
             <div className="space-y-2">
-              {sorted.map(entry => {
-                const cat = CATEGORIES[entry.category] || { icon: '📋', color: 'text-gray-400' }
-                const typeColors = {
-                  entrada: 'border-green-500/30',
-                  saida: 'border-red-500/30',
-                  investimento: 'border-purple-500/30',
-                }
-                const typeLabels = {
-                  entrada: 'Entrada',
-                  saida: 'Saída',
-                  investimento: 'Investimento',
-                }
+              {filtered.map(entry => {
+                const meta = TYPE_META[entry.type]
                 return (
-                  <div key={entry.id} className={`bg-gray-800 border ${typeColors[entry.type]} rounded-lg p-3 flex items-center justify-between gap-3`}>
-                    <div className="flex items-center gap-3">
-                      <span className="text-xl">{cat.icon}</span>
-                      <div>
-                        <p className="text-white text-sm font-medium">{entry.description}</p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className={`text-[10px] font-medium ${cat.color}`}>{entry.category}</span>
+                  <div key={entry.id} className={`bg-gray-800 border ${meta.border} rounded-lg p-3 flex flex-wrap items-center justify-between gap-2`}>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="text-xl">{CATEGORIES[entry.category] || '📋'}</span>
+                      <div className="min-w-0">
+                        <p className="text-white text-sm font-medium truncate">{entry.description}</p>
+                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                          <span className="text-gray-500 text-[10px]">{entry.category}</span>
                           <span className="text-gray-600 text-[10px]">•</span>
-                          <span className="text-gray-500 text-[10px]">{typeLabels[entry.type]}</span>
+                          <span className="text-gray-500 text-[10px]">{meta.label}</span>
                           <span className="text-gray-600 text-[10px]">•</span>
-                          <span className="text-gray-500 text-[10px]">
-                            {new Date(entry.date + 'T12:00:00').toLocaleDateString('pt-BR')}
-                          </span>
+                          <span className="text-gray-500 text-[10px]">{new Date(entry.date + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
+                          {entry.source === 'mp' && <span className="text-blue-400 text-[10px] bg-blue-500/10 px-1.5 rounded">MP</span>}
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <p className={`text-sm font-bold ${
-                        entry.type === 'entrada' ? 'text-green-400' :
-                        entry.type === 'saida' ? 'text-red-400' : 'text-purple-400'
-                      }`}>
-                        {entry.type === 'saida' || entry.type === 'investimento' ? '-' : '+'} R$ {entry.amount.toFixed(2)}
+                    <div className="flex items-center gap-2 ml-auto">
+                      <p className={`text-sm font-bold ${meta.text}`}>
+                        {entry.type === 'entrada' ? '+' : '-'} R$ {entry.amount.toFixed(2)}
                       </p>
-                      <div className="flex flex-col gap-1">
-                        <button onClick={() => handleEdit(entry)} className="text-gray-500 hover:text-white text-[10px]">✏️</button>
-                        <button onClick={() => handleDelete(entry.id)} className="text-gray-500 hover:text-red-400 text-[10px]">🗑️</button>
-                      </div>
+                      {entry.source !== 'mp' && (
+                        <div className="flex flex-col gap-1">
+                          <button onClick={() => handleEdit(entry)} className="text-gray-500 hover:text-white text-[10px]" title="Editar">✏️</button>
+                          <button onClick={() => handleDelete(entry.id)} className="text-gray-500 hover:text-red-400 text-[10px]" title="Remover">🗑️</button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )
