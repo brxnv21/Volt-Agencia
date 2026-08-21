@@ -26,26 +26,42 @@ export async function GET(request: NextRequest) {
     const me: any = await meRes.json()
 
     let available: number | null = null
-    let lastErr = ''
+    const probes: Array<{ url: string; status: number }> = []
 
-    // Endpoint oficial do saldo Mercado Pago
-    const balRes = await fetch(
+    // Sonda: testa todas as variações conhecidas do endpoint de saldo
+    const candidates = [
       `https://api.mercadopago.com/v1/users/${me.id}/mercado_pago_balance`,
-      { headers, cache: 'no-store' }
-    )
-    if (balRes.ok) {
-      const bal: any = await balRes.json()
-      const arr: any[] = Array.isArray(bal?.balance) ? bal.balance : []
-      const brlAvailable = arr
-        .filter((b) => b.currency_id === 'BRL' && b.type === 'available')
-        .reduce((s, b) => s + (Number(b.amount) || 0), 0)
-      available = brlAvailable || null
-      if (available === null && arr.length > 0) available = Number(arr[0].amount) || null
-    } else {
-      lastErr = `balance ${balRes.status}`
+      `https://api.mercadopago.com/users/${me.id}/mercado_pago_balance`,
+      `https://api.mercadopago.com/v1/account/balance`,
+      `https://api.mercadopago.com/v1/users/${me.id}/balances`,
+      `https://api.mercadopago.com/merconnect/accounts/${me.id}/balance`,
+    ]
+
+    for (const url of candidates) {
+      try {
+        const r = await fetch(url, { headers, cache: 'no-store' })
+        probes.push({ url: url.replace(`/${me.id}`, '/{id}'), status: r.status })
+        if (!r.ok) continue
+        const j: any = await r.json()
+        const arr: any[] = Array.isArray(j?.balance) ? j.balance : (Array.isArray(j?.available_balance) ? j.available_balance : [])
+        if (Array.isArray(arr) && arr.length > 0) {
+          const brl = arr.filter((b) => b.currency_id === 'BRL' && (b.type === 'available' || !b.type))
+          if (brl.length > 0) {
+            available = brl.reduce((s, b) => s + (Number(b.amount) || 0), 0)
+            break
+          }
+        }
+        if (typeof j?.available_amount === 'number') { available = j.available_amount; break }
+        if (typeof j?.total_amount === 'number') { available = j.total_amount; break }
+        if (typeof j?.available === 'number') { available = j.available; break }
+      } catch {
+        probes.push({ url: url.replace(`/${me.id}`, '/{id}'), status: -1 })
+      }
     }
 
-    if (available === null) throw new Error(lastErr || 'saldo indisponível')
+    if (available === null) {
+      return NextResponse.json({ error: 'nenhum endpoint de saldo respondeu', probes }, { status: 502 })
+    }
 
     cache = { at: Date.now(), value: available }
     return NextResponse.json({ available, cached: false })
