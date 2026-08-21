@@ -13,21 +13,38 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const payment = new Payment(client)
-    const result = await payment.search({
-      options: {
-        sort: 'date_created',
-        criteria: 'desc',
-        range: 'date_created',
-        begin_date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-        end_date: new Date().toISOString(),
-      },
-    })
+    const days = parseInt(request.nextUrl.searchParams.get('days') || '365')
 
-    const payments = (result.results || []).map((p: any) => {
+    const payment = new Payment(client)
+    const allPayments: any[] = []
+    let offset = 0
+    const limit = 50
+
+    while (true) {
+      const result = await payment.search({
+        options: {
+          sort: 'date_created',
+          criteria: 'desc',
+          range: 'date_created',
+          begin_date: new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString(),
+          end_date: new Date().toISOString(),
+          limit,
+          offset,
+        },
+      })
+
+      const results = result.results || []
+      allPayments.push(...results)
+
+      if (results.length < limit) break
+      offset += limit
+      if (offset > 500) break
+    }
+
+    const payments = allPayments.map((p: any) => {
       const order = decodeOrderRef(p.external_reference || '')
       const turboIds = p.metadata?.turbo_ids
-        ? String(p.metadata.turbo_ids).split(',').map(Number).filter(n => !isNaN(n))
+        ? String(p.metadata.turbo_ids).split(',').map(Number).filter((n: number) => !isNaN(n))
         : []
       return {
         id: p.id,

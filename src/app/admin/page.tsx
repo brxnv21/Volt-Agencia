@@ -27,6 +27,17 @@ interface TurboOrderStatus {
   remains: string
 }
 
+interface EnrichedTurboOrder {
+  orderId: string
+  status: string
+  charge: string
+  start_count: string
+  remains: string
+  serviceName?: string
+  link?: string
+  quantity?: number
+}
+
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   approved: { label: 'Aprovado', color: 'bg-green-500/20 text-green-400 border-green-500/30' },
   pending: { label: 'Pendente', color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' },
@@ -44,26 +55,16 @@ const TURBO_STATUS: Record<string, { label: string; color: string; icon: string 
   Canceled: { label: 'Cancelado', color: 'text-red-400', icon: '❌' },
 }
 
-const TIME_FILTERS = [
-  { id: '1h', label: '1h', ms: 3600000 },
-  { id: '5h', label: '5h', ms: 18000000 },
-  { id: '12h', label: '12h', ms: 43200000 },
-  { id: '24h', label: '24h', ms: 86400000 },
-  { id: '7d', label: '7d', ms: 604800000 },
-  { id: '15d', label: '15d', ms: 1296000000 },
-  { id: '30d', label: '30d', ms: 2592000000 },
-  { id: '60d', label: '60d', ms: 5184000000 },
-  { id: '90d', label: '90d', ms: 7776000000 },
-  { id: '180d', label: '180d', ms: 15552000000 },
-  { id: '365d', label: '365d', ms: 31536000000 },
-  { id: 'all', label: 'Tudo', ms: Infinity },
+const DAILY_FILTERS = [
+  { id: '7d', label: '7d', days: 7 },
+  { id: '15d', label: '15d', days: 15 },
+  { id: '30d', label: '30d', days: 30 },
+  { id: '60d', label: '60d', days: 60 },
+  { id: '90d', label: '90d', days: 90 },
+  { id: '180d', label: '180d', days: 180 },
+  { id: '365d', label: '365d', days: 365 },
+  { id: 'all', label: 'Tudo', days: 9999 },
 ]
-
-function filterByTime(payments: Payment[], ms: number): Payment[] {
-  if (ms === Infinity) return payments
-  const cutoff = Date.now() - ms
-  return payments.filter(p => new Date(p.date).getTime() >= cutoff)
-}
 
 function groupByDay(payments: Payment[]): Record<string, Payment[]> {
   const groups: Record<string, Payment[]> = {}
@@ -76,58 +77,61 @@ function groupByDay(payments: Payment[]): Record<string, Payment[]> {
   return groups
 }
 
-function groupByHour(payments: Payment[]): Record<string, Payment[]> {
-  const groups: Record<string, Payment[]> = {}
-  for (const p of payments) {
-    const d = new Date(p.date)
-    const key = `${String(d.getHours()).padStart(2, '0')}:00`
-    if (!groups[key]) groups[key] = []
-    groups[key].push(p)
-  }
-  return groups
+function formatDateLabel(dateStr: string): string {
+  const d = new Date(dateStr + 'T12:00:00')
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
 }
 
-function BarChart({ data, color }: {
+function SimpleBarChart({ data, color, emptyMsg }: {
   data: { label: string; value: number; count: number }[]
   color: string
+  emptyMsg?: string
 }) {
   const maxVal = Math.max(...data.map(d => d.value), 1)
 
   if (data.length === 0) {
     return (
       <div className="flex items-center justify-center h-40 text-gray-600 text-sm">
-        Nenhum dado neste período
+        {emptyMsg || 'Nenhum dado'}
       </div>
     )
   }
 
   return (
-    <div className="flex items-end gap-1 sm:gap-2 h-48 sm:h-56 overflow-x-auto pb-6 relative">
-      {data.map((d, i) => {
-        const pct = maxVal > 0 ? (d.value / maxVal) * 100 : 0
-        return (
-          <div key={i} className="flex-1 min-w-[24px] flex flex-col items-center gap-1 relative group">
-            <div className="absolute -top-8 bg-gray-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
-              {d.count} {d.count === 1 ? 'pedido' : 'pedidos'} — R$ {d.value.toFixed(0)}
+    <div className="relative">
+      <div className="flex items-end gap-[2px] sm:gap-1 h-44 sm:h-52 overflow-x-auto pb-8">
+        {data.map((d, i) => {
+          const pct = (d.value / maxVal) * 100
+          const barH = d.value > 0 ? Math.max(pct, 4) : 0
+          return (
+            <div key={i} className="flex-1 min-w-[18px] flex flex-col items-center relative group" style={{ height: '100%' }}>
+              <div className="absolute -top-7 bg-gray-800 text-white text-[9px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20 pointer-events-none">
+                {d.count}x R${d.value.toFixed(0)}
+              </div>
+              <div className="w-full flex-1 flex items-end justify-center">
+                {barH > 0 && (
+                  <div
+                    className="w-full max-w-[20px] rounded-t transition-all duration-300"
+                    style={{
+                      height: `${barH}%`,
+                      background: `linear-gradient(to top, ${color}44, ${color})`,
+                      boxShadow: `0 0 8px ${color}33`,
+                    }}
+                  />
+                )}
+              </div>
+              <span className="text-gray-600 text-[7px] sm:text-[8px] absolute -bottom-6 whitespace-nowrap">{d.label}</span>
             </div>
-            <div className="w-full relative flex-1 flex items-end">
-              <div
-                className="w-full rounded-t-md transition-all duration-500"
-                style={{
-                  height: `${Math.max(pct, 2)}%`,
-                  background: `linear-gradient(to top, ${color}33, ${color})`,
-                }}
-              />
-            </div>
-            <span className="text-gray-600 text-[8px] sm:text-[9px] absolute -bottom-5 truncate max-w-[40px] text-center">{d.label}</span>
-          </div>
-        )
-      })}
+          )
+        })}
+      </div>
     </div>
   )
 }
 
 type Tab = 'vendas' | 'grafico' | 'tracking'
+
+const ITEMS_PER_PAGE = 5
 
 export default function AdminPage() {
   const [key, setKey] = useState('')
@@ -144,7 +148,8 @@ export default function AdminPage() {
   const [turboBalance, setTurboBalance] = useState<string | null>(null)
   const [lowBalanceNotified, setLowBalanceNotified] = useState(false)
   const [manualOrderId, setManualOrderId] = useState('')
-  const [timeFilter, setTimeFilter] = useState('30d')
+  const [dailyFilter, setDailyFilter] = useState('30d')
+  const [trackingPage, setTrackingPage] = useState(1)
   const prevCountRef = useRef(0)
 
   useEffect(() => {
@@ -177,7 +182,7 @@ export default function AdminPage() {
     setLoading(true)
     setError('')
     try {
-      const res = await fetch(`/api/admin/payments?key=${encodeURIComponent(k)}`)
+      const res = await fetch(`/api/admin/payments?key=${encodeURIComponent(k)}&days=365`)
       const data = await res.json()
       if (!res.ok) {
         setError(data.error || 'Erro ao buscar pagamentos')
@@ -223,7 +228,6 @@ export default function AdminPage() {
           }
         }
       } catch {
-        // balance check is non-critical
       }
     } catch {
       setError('Erro de conexão')
@@ -240,7 +244,6 @@ export default function AdminPage() {
       if (balData.balance) {
         const bal = balData.balance.balance
         setTurboBalance(bal)
-
         const balNum = parseFloat(bal)
         if (!isNaN(balNum) && balNum < 7 && !lowBalanceNotified) {
           setLowBalanceNotified(true)
@@ -260,7 +263,6 @@ export default function AdminPage() {
       const allTurboIds = payments
         .filter(p => p.status === 'approved' && p.turboIds && p.turboIds.length > 0)
         .flatMap(p => p.turboIds)
-
       const uniqueIds = [...new Set(allTurboIds)]
 
       if (uniqueIds.length > 0) {
@@ -316,20 +318,25 @@ export default function AdminPage() {
   const approved = useMemo(() => payments.filter(p => p.status === 'approved'), [payments])
   const total = useMemo(() => approved.reduce((sum, p) => sum + p.amount, 0), [approved])
 
-  const currentFilter = TIME_FILTERS.find(f => f.id === timeFilter) || TIME_FILTERS[TIME_FILTERS.length - 1]
-  const filteredApproved = useMemo(() => filterByTime(approved, currentFilter.ms), [approved, currentFilter])
+  const currentDailyFilter = DAILY_FILTERS.find(f => f.id === dailyFilter) || DAILY_FILTERS[DAILY_FILTERS.length - 1]
+
+  const filteredApproved = useMemo(() => {
+    if (currentDailyFilter.days >= 9999) return approved
+    const cutoff = Date.now() - currentDailyFilter.days * 24 * 60 * 60 * 1000
+    return approved.filter(p => new Date(p.date).getTime() >= cutoff)
+  }, [approved, currentDailyFilter])
+
   const filteredTotal = useMemo(() => filteredApproved.reduce((sum, p) => sum + p.amount, 0), [filteredApproved])
 
   const graphData = useMemo(() => {
-    const useHour = currentFilter.ms <= 86400000
-    const groups = useHour ? groupByHour(filteredApproved) : groupByDay(filteredApproved)
+    const groups = groupByDay(filteredApproved)
     const entries = Object.entries(groups).sort(([a], [b]) => a.localeCompare(b))
-    return entries.map(([key, ps]) => ({
-      label: key.length > 5 ? key.slice(5) : key,
+    return entries.map(([dateKey, ps]) => ({
+      label: formatDateLabel(dateKey),
       value: ps.reduce((s, p) => s + p.amount, 0),
       count: ps.length,
     }))
-  }, [filteredApproved, currentFilter])
+  }, [filteredApproved])
 
   const methodData = useMemo(() => {
     const groups: Record<string, { value: number; count: number }> = {}
@@ -341,6 +348,81 @@ export default function AdminPage() {
     }
     return groups
   }, [filteredApproved])
+
+  const enrichedTurboOrders: EnrichedTurboOrder[] = useMemo(() => {
+    const approvedPayments = payments.filter(p => p.status === 'approved')
+    const result: EnrichedTurboOrder[] = []
+
+    for (const p of approvedPayments) {
+      if (p.turboIds && p.turboIds.length > 0) {
+        for (const tid of p.turboIds) {
+          const turboStatus = turboOrders[String(tid)]
+          result.push({
+            orderId: String(tid),
+            status: turboStatus?.status || 'Desconhecido',
+            charge: turboStatus?.charge || '—',
+            start_count: turboStatus?.start_count || '—',
+            remains: turboStatus?.remains || '—',
+            serviceName: p.serviceName,
+            link: p.link,
+            quantity: p.quantity,
+          })
+        }
+      }
+    }
+
+    for (const [orderId, status] of Object.entries(turboOrders)) {
+      if (!result.find(r => r.orderId === orderId)) {
+        result.push({
+          orderId,
+          status: status.status,
+          charge: status.charge,
+          start_count: status.start_count,
+          remains: status.remains,
+        })
+      }
+    }
+
+    return result
+  }, [payments, turboOrders])
+
+  const trackingTotalPages = Math.max(1, Math.ceil(enrichedTurboOrders.length / ITEMS_PER_PAGE))
+  const trackingPaginatedOrders = enrichedTurboOrders.slice(
+    (trackingPage - 1) * ITEMS_PER_PAGE,
+    trackingPage * ITEMS_PER_PAGE
+  )
+
+  useEffect(() => {
+    if (trackingPage > trackingTotalPages) setTrackingPage(trackingTotalPages)
+  }, [trackingTotalPages, trackingPage])
+
+  const trackingDeliveryData = useMemo(() => {
+    const approvedPayments = payments.filter(p => p.status === 'approved')
+    const completedOrders: { date: string }[] = []
+
+    for (const [orderId, status] of Object.entries(turboOrders)) {
+      if (status.status === 'Completed') {
+        const payment = approvedPayments.find(p => p.turboIds?.includes(Number(orderId)))
+        if (payment) {
+          const d = new Date(payment.date)
+          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+          completedOrders.push({ date: key })
+        }
+      }
+    }
+
+    const groups: Record<string, number> = {}
+    for (const o of completedOrders) {
+      groups[o.date] = (groups[o.date] || 0) + 1
+    }
+
+    const entries = Object.entries(groups).sort(([a], [b]) => a.localeCompare(b))
+    return entries.map(([dateKey, count]) => ({
+      label: formatDateLabel(dateKey),
+      value: count,
+      count,
+    }))
+  }, [payments, turboOrders])
 
   if (!authenticated) {
     return (
@@ -537,12 +619,12 @@ export default function AdminPage() {
               </div>
 
               <div className="flex flex-wrap gap-1.5 mb-5">
-                {TIME_FILTERS.map(f => (
+                {DAILY_FILTERS.map(f => (
                   <button
                     key={f.id}
-                    onClick={() => setTimeFilter(f.id)}
+                    onClick={() => { setDailyFilter(f.id); setTrackingPage(1) }}
                     className={`px-2.5 py-1.5 rounded-lg text-[10px] sm:text-xs font-medium transition-all ${
-                      timeFilter === f.id
+                      dailyFilter === f.id
                         ? 'bg-purple-500 text-white'
                         : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white'
                     }`}
@@ -554,9 +636,10 @@ export default function AdminPage() {
 
               <div className="overflow-x-auto">
                 <div className="min-w-[300px]">
-                  <BarChart
+                  <SimpleBarChart
                     data={graphData}
                     color="#A855F7"
+                    emptyMsg="Nenhuma venda neste período"
                   />
                 </div>
               </div>
@@ -618,24 +701,6 @@ export default function AdminPage() {
 
         {tab === 'tracking' && (
           <>
-            {turboBalance && parseFloat(turboBalance) < 7 && (
-              <div className="bg-red-900/40 border border-red-500/50 rounded-xl p-4 mb-4 flex items-center gap-3">
-                <span className="text-2xl">⚠️</span>
-                <div className="flex-1">
-                  <p className="text-red-300 font-bold text-sm">Saldo baixo no Turbosociais!</p>
-                  <p className="text-red-400/80 text-xs">Saldo atual: R$ {parseFloat(turboBalance).toFixed(2)}. Recarga urgente necessária para manter as entregas.</p>
-                </div>
-                <a
-                  href="https://turbosociais.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-4 py-2 bg-red-500 hover:bg-red-400 text-white rounded-lg text-xs font-bold transition whitespace-nowrap"
-                >
-                  Recarregar
-                </a>
-              </div>
-            )}
-
             <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 mb-4">
               <div className="flex items-center justify-between mb-3">
                 <div>
@@ -645,7 +710,7 @@ export default function AdminPage() {
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="text-gray-500 text-[10px] mb-1">{payments.filter(p => p.status === 'approved').length} pedidos aprovados</p>
+                  <p className="text-gray-500 text-[10px] mb-1">{enrichedTurboOrders.length} pedidos Turbo</p>
                   <button
                     onClick={fetchTurboOrders}
                     disabled={turboLoading}
@@ -675,35 +740,90 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {Object.keys(turboOrders).length > 0 ? (
-              <div className="space-y-2">
-                {Object.entries(turboOrders).map(([orderId, status]) => {
-                  const s = TURBO_STATUS[status.status] || { label: status.status, color: 'text-gray-400', icon: '❓' }
-                  return (
-                    <div key={orderId} className="bg-gray-900 border border-gray-800 rounded-xl p-3 sm:p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <span className="text-xl">{s.icon}</span>
-                          <div>
-                            <p className="text-white text-sm font-medium">Pedido #{orderId}</p>
-                            <p className={`text-xs font-medium ${s.color}`}>{s.label}</p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-gray-500 text-[10px]">Início / Restante</p>
-                          <p className="text-white text-xs font-medium">{status.start_count || '0'} / {status.remains || '0'}</p>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            ) : (
-              <div className="bg-gray-900 border border-gray-800 rounded-xl p-12 text-center">
-                <p className="text-gray-600 text-lg">Nenhum pedido para rastrear</p>
-                <p className="text-gray-700 text-sm mt-2">Clique em "Atualizar" ou busque por ID</p>
+            {trackingDeliveryData.length > 0 && (
+              <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 mb-4">
+                <h3 className="text-white text-sm font-medium mb-3">Entregas por dia</h3>
+                <div className="overflow-x-auto">
+                  <div className="min-w-[300px]">
+                    <SimpleBarChart
+                      data={trackingDeliveryData}
+                      color="#22C55E"
+                      emptyMsg="Nenhuma entrega concluída"
+                    />
+                  </div>
+                </div>
               </div>
             )}
+
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+              <h3 className="text-white text-sm font-medium mb-3">
+                Pedidos Turbosociais ({enrichedTurboOrders.length})
+              </h3>
+
+              {enrichedTurboOrders.length === 0 ? (
+                <div className="py-8 text-center">
+                  <p className="text-gray-600 text-sm">Nenhum pedido para rastrear</p>
+                  <p className="text-gray-700 text-[10px] mt-1">Clique em "Atualizar" ou busque por ID</p>
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-2 mb-4">
+                    {trackingPaginatedOrders.map((order) => {
+                      const s = TURBO_STATUS[order.status] || { label: order.status, color: 'text-gray-400', icon: '❓' }
+                      return (
+                        <div key={order.orderId} className="bg-gray-800 border border-gray-700 rounded-lg p-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-2.5">
+                              <span className="text-lg">{s.icon}</span>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <p className="text-white text-sm font-medium">#{order.orderId}</p>
+                                  <span className={`text-[10px] font-medium ${s.color}`}>{s.label}</span>
+                                </div>
+                                {order.serviceName && (
+                                  <p className="text-gray-400 text-[10px] mt-0.5">{order.serviceName}</p>
+                                )}
+                                {order.link && (
+                                  <p className="text-gray-500 text-[9px] truncate max-w-[200px] mt-0.5">{order.link}</p>
+                                )}
+                              </div>
+                            </div>
+                            <div className="text-right flex-shrink-0">
+                              <p className="text-gray-500 text-[9px]">Custo</p>
+                              <p className="text-white text-xs font-medium">R$ {order.charge}</p>
+                              <p className="text-gray-500 text-[9px] mt-1">Início / Falta</p>
+                              <p className="text-white text-[10px]">{order.start_count} / {order.remains}</p>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {trackingTotalPages > 1 && (
+                    <div className="flex items-center justify-center gap-3 pt-2 border-t border-gray-800">
+                      <button
+                        onClick={() => setTrackingPage(p => Math.max(1, p - 1))}
+                        disabled={trackingPage === 1}
+                        className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-xs transition disabled:opacity-30"
+                      >
+                        ← Anterior
+                      </button>
+                      <span className="text-gray-400 text-xs">
+                        {trackingPage} / {trackingTotalPages}
+                      </span>
+                      <button
+                        onClick={() => setTrackingPage(p => Math.min(trackingTotalPages, p + 1))}
+                        disabled={trackingPage === trackingTotalPages}
+                        className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-xs transition disabled:opacity-30"
+                      >
+                        Próxima →
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
           </>
         )}
       </div>
