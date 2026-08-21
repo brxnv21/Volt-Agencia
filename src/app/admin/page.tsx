@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { playCashRegisterSound } from '@/lib/sounds'
 
 interface Payment {
   id: string
@@ -25,23 +26,6 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   in_process: { label: 'Processando', color: 'bg-orange-500/20 text-orange-400 border-orange-500/30' },
   rejected: { label: 'Rejeitado', color: 'bg-red-500/20 text-red-400 border-red-500/30' },
   cancelled: { label: 'Cancelado', color: 'bg-gray-500/20 text-gray-400 border-gray-500/30' },
-}
-
-function playNotificationSound() {
-  try {
-    const ctx = new AudioContext()
-    const osc = ctx.createOscillator()
-    const gain = ctx.createGain()
-    osc.connect(gain)
-    gain.connect(ctx.destination)
-    osc.frequency.setValueAtTime(800, ctx.currentTime)
-    osc.frequency.setValueAtTime(1000, ctx.currentTime + 0.1)
-    osc.frequency.setValueAtTime(800, ctx.currentTime + 0.2)
-    gain.gain.setValueAtTime(0.3, ctx.currentTime)
-    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5)
-    osc.start(ctx.currentTime)
-    osc.stop(ctx.currentTime + 0.5)
-  } catch {}
 }
 
 export default function AdminPage() {
@@ -87,7 +71,7 @@ export default function AdminPage() {
       setAuthenticated(true)
 
       if (prevCountRef.current > 0 && newPayments.length > prevCountRef.current) {
-        playNotificationSound()
+        playCashRegisterSound()
         if ('vibrate' in navigator) navigator.vibrate([200, 100, 200])
         if ('Notification' in window && Notification.permission === 'granted') {
           new Notification('🔔 Nova venda VOLT!', {

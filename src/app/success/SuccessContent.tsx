@@ -5,6 +5,7 @@ import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import WhatsAppButton from '@/components/WhatsAppButton'
 import { trackPurchase } from '@/components/MetaPixel'
+import { playCashRegisterSound } from '@/lib/sounds'
 
 export default function SuccessContent({
   orderId,
@@ -18,6 +19,8 @@ export default function SuccessContent({
   useEffect(() => {
     if (!isDemo && value > 0) {
       trackPurchase(value, orderId)
+      playCashRegisterSound()
+      if ('vibrate' in navigator) navigator.vibrate([100, 50, 100, 50, 200])
     }
   }, [isDemo, value, orderId])
 

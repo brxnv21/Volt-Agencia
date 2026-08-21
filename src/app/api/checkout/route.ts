@@ -6,13 +6,16 @@ import { generateOrderId } from '@/lib/orders'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { serviceId, quantity, price, link, contact, contactType, serviceName } = body
+    const { serviceId, quantity, price, link, contact, contactType, serviceName, upsells } = body
 
     if (!serviceId || !quantity || !price || !link || !contact) {
       return NextResponse.json({ error: 'Dados incompletos' }, { status: 400 })
     }
 
     const orderId = generateOrderId()
+
+    const upsellNames = upsells?.map((u: any) => u.name).join(' + ') || ''
+    const fullServiceName = upsellNames ? `${serviceName} + ${upsellNames}` : serviceName
 
     const orderRef = encodeOrderRef({
       orderId,
@@ -21,7 +24,7 @@ export async function POST(request: NextRequest) {
       contactType: contactType || 'email',
       contact,
       link,
-      serviceName,
+      serviceName: fullServiceName,
       price,
     })
 
@@ -34,7 +37,7 @@ export async function POST(request: NextRequest) {
         await fetch(`${appUrl}/api/notify`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ orderId, serviceName, quantity, price, contact, contactType, link, serviceId }),
+          body: JSON.stringify({ orderId, serviceName: fullServiceName, quantity, price, contact, contactType, link, serviceId }),
         })
       } catch (e) {
         console.log('Demo notification skipped:', e)
@@ -48,7 +51,7 @@ export async function POST(request: NextRequest) {
     }
 
     const preference = await createPreference({
-      title: `VOLT Agência - ${serviceName}`,
+      title: `VOLT Agência - ${fullServiceName}`,
       quantity: 1,
       unitPrice: price,
       externalReference: orderRef,

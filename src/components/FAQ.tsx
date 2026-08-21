@@ -33,7 +33,7 @@ const faqs = [
   },
   {
     question: 'Tem suporte disponível?',
-    answer: 'Sim! Nosso suporte está disponível 24h via WhatsApp e Telegram. Tempo médio de resposta: 5 minutos.',
+    answer: 'Sim! Nosso suporte está disponível 24h via WhatsApp. Tempo médio de resposta: 5 minutos.',
   },
 ]
 

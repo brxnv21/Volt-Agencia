@@ -169,6 +169,7 @@ function CheckoutContent() {
   const [currentSale, setCurrentSale] = useState<SimulatedSale | null>(null)
   const [showSale, setShowSale] = useState(false)
   const [addedUpsells, setAddedUpsells] = useState<number[]>([])
+  const [selectedUpsells, setSelectedUpsells] = useState<typeof upsells>([])
 
   let selectedService = null
   let selectedCategory = null
@@ -183,6 +184,8 @@ function CheckoutContent() {
   }
 
   const serviceHint = selectedCategory ? getServiceHint(selectedCategory.id) : null
+  const upsellTotal = selectedUpsells.reduce((sum, u) => sum + u.price, 0)
+  const totalPrice = price + upsellTotal
 
   useEffect(() => {
     setMounted(true)
@@ -230,13 +233,13 @@ function CheckoutContent() {
   }
 
   const handleAddUpsell = (upsell: typeof upsells[0]) => {
-    if (addedUpsells.includes(upsell.serviceId)) return
-    const params = new URLSearchParams({
-      service: String(upsell.serviceId),
-      qty: String(upsell.qty),
-      price: String(upsell.price),
-    })
-    window.location.href = `/checkout?${params.toString()}`
+    if (addedUpsells.includes(upsell.serviceId)) {
+      setAddedUpsells(prev => prev.filter(id => id !== upsell.serviceId))
+      setSelectedUpsells(prev => prev.filter(u => u.serviceId !== upsell.serviceId))
+    } else {
+      setAddedUpsells(prev => [...prev, upsell.serviceId])
+      setSelectedUpsells(prev => [...prev, upsell])
+    }
   }
 
   const validateLink = (value: string): string | null => {
@@ -295,11 +298,12 @@ function CheckoutContent() {
         body: JSON.stringify({
           serviceId,
           quantity: qty,
-          price,
+          price: totalPrice,
           link: cleanLink,
           contact: fullPhone,
           contactType,
           serviceName: selectedService!.name,
+          upsells: selectedUpsells.map(u => ({ name: u.name, price: u.price })),
         }),
       })
 
@@ -387,9 +391,14 @@ function CheckoutContent() {
               </div>
               <div className="border-t border-volt-border mt-3 pt-3 flex justify-between items-center">
                 <span className="text-white font-semibold text-sm sm:text-base">Total</span>
-                <span className="text-xl sm:text-2xl font-bold text-volt-primary">
-                  R$ {price.toFixed(2).replace('.', ',')}
-                </span>
+                <div className="text-right">
+                  {upsellTotal > 0 && (
+                    <span className="text-gray-500 text-xs line-through mr-2">R$ {price.toFixed(2).replace('.', ',')}</span>
+                  )}
+                  <span className="text-xl sm:text-2xl font-bold text-volt-primary">
+                    R$ {totalPrice.toFixed(2).replace('.', ',')}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -539,7 +548,12 @@ function CheckoutContent() {
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <span className="text-white font-bold text-xs">R$ {upsell.price.toFixed(2).replace('.', ',')}</span>
                       {addedUpsells.includes(upsell.serviceId) ? (
-                        <span className="bg-green-500/20 text-green-400 text-[10px] font-medium px-2 py-1 rounded-lg">✓ Adicionado</span>
+                        <button
+                          onClick={() => handleAddUpsell(upsell)}
+                          className="bg-green-500/20 text-green-400 text-[10px] font-medium px-2 py-1 rounded-lg hover:bg-red-500/20 hover:text-red-400 transition-colors"
+                        >
+                          ✓ Remover
+                        </button>
                       ) : (
                         <button
                           onClick={() => handleAddUpsell(upsell)}
@@ -565,7 +579,12 @@ function CheckoutContent() {
                     <div className="flex items-center gap-3 flex-shrink-0">
                       <span className="text-white font-bold text-sm">R$ {upsell.price.toFixed(2).replace('.', ',')}</span>
                       {addedUpsells.includes(upsell.serviceId) ? (
-                        <span className="bg-green-500/20 text-green-400 text-xs font-medium px-3 py-1.5 rounded-lg">Adicionado ✓</span>
+                        <button
+                          onClick={() => handleAddUpsell(upsell)}
+                          className="bg-green-500/20 text-green-400 text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-red-500/20 hover:text-red-400 transition-colors whitespace-nowrap"
+                        >
+                          ✓ Remover
+                        </button>
                       ) : (
                         <button
                           onClick={() => handleAddUpsell(upsell)}
