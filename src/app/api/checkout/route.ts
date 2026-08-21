@@ -26,6 +26,12 @@ export async function POST(request: NextRequest) {
       link,
       serviceName: fullServiceName,
       price,
+      upsells: upsells?.map((u: any) => ({
+        serviceId: u.serviceId,
+        qty: u.qty,
+        link: u.link || link,
+        name: u.name,
+      })) || [],
     })
 
     const isDemo = process.env.NEXT_PUBLIC_DEMO_MODE === 'true' || !process.env.MERCADO_PAGO_ACCESS_TOKEN

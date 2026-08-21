@@ -123,6 +123,9 @@ const upsells = [
     description: 'Complete com curtidas para mais engajamento',
     icon: '❤️',
     badge: 'MAIS VENDIDO',
+    needsLink: true,
+    linkLabel: 'Link da postagem',
+    linkPlaceholder: 'https://instagram.com/p/SEU_POST',
   },
   {
     serviceId: 11,
@@ -132,6 +135,9 @@ const upsells = [
     description: 'Multiplique as visualizações do seu melhor conteúdo',
     icon: '👁️',
     badge: 'POPULAR',
+    needsLink: true,
+    linkLabel: 'Link do Reels ou Post',
+    linkPlaceholder: 'https://instagram.com/reel/SEU_REELS',
   },
   {
     serviceId: 377,
@@ -141,6 +147,9 @@ const upsells = [
     description: 'Alcance muito mais pessoas',
     icon: '🔄',
     badge: 'BARATO',
+    needsLink: true,
+    linkLabel: 'Link da postagem',
+    linkPlaceholder: 'https://instagram.com/p/SEU_POST',
   },
   {
     serviceId: 381,
@@ -150,6 +159,9 @@ const upsells = [
     description: 'Aumente as métricas do seu perfil',
     icon: '📊',
     badge: 'RECOMENDADO',
+    needsLink: true,
+    linkLabel: 'Link do perfil ou postagem',
+    linkPlaceholder: 'https://instagram.com/seuusuario',
   },
 ]
 
@@ -170,6 +182,7 @@ function CheckoutContent() {
   const [showSale, setShowSale] = useState(false)
   const [addedUpsells, setAddedUpsells] = useState<number[]>([])
   const [selectedUpsells, setSelectedUpsells] = useState<typeof upsells>([])
+  const [upsellLinks, setUpsellLinks] = useState<Record<number, string>>({})
 
   let selectedService = null
   let selectedCategory = null
@@ -236,6 +249,7 @@ function CheckoutContent() {
     if (addedUpsells.includes(upsell.serviceId)) {
       setAddedUpsells(prev => prev.filter(id => id !== upsell.serviceId))
       setSelectedUpsells(prev => prev.filter(u => u.serviceId !== upsell.serviceId))
+      setUpsellLinks(prev => { const n = { ...prev }; delete n[upsell.serviceId]; return n })
     } else {
       setAddedUpsells(prev => [...prev, upsell.serviceId])
       setSelectedUpsells(prev => [...prev, upsell])
@@ -303,7 +317,13 @@ function CheckoutContent() {
           contact: fullPhone,
           contactType,
           serviceName: selectedService!.name,
-          upsells: selectedUpsells.map(u => ({ name: u.name, price: u.price })),
+          upsells: selectedUpsells.map(u => ({
+            name: u.name,
+            price: u.price,
+            serviceId: u.serviceId,
+            qty: u.qty,
+            link: u.needsLink ? (upsellLinks[u.serviceId] || cleanLink) : cleanLink,
+          })),
         }),
       })
 
@@ -532,7 +552,9 @@ function CheckoutContent() {
               <span className="bg-volt-primary/20 text-volt-primary text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-full">ECONOMIZE</span>
             </div>
             <div className="space-y-2.5 sm:space-y-3">
-              {upsells.map((upsell) => (
+              {upsells.map((upsell) => {
+                const isAdded = addedUpsells.includes(upsell.serviceId)
+                return (
                 <div key={upsell.serviceId} className="bg-volt-card border border-volt-border rounded-xl p-3 sm:p-4 hover:border-volt-primary/20 transition-colors">
                   <div className="flex items-center justify-between gap-3 sm:hidden">
                     <div className="flex items-center gap-2.5 min-w-0">
@@ -547,7 +569,7 @@ function CheckoutContent() {
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <span className="text-white font-bold text-xs">R$ {upsell.price.toFixed(2).replace('.', ',')}</span>
-                      {addedUpsells.includes(upsell.serviceId) ? (
+                      {isAdded ? (
                         <button
                           onClick={() => handleAddUpsell(upsell)}
                           className="bg-green-500/20 text-green-400 text-[10px] font-medium px-2 py-1 rounded-lg hover:bg-red-500/20 hover:text-red-400 transition-colors"
@@ -578,7 +600,7 @@ function CheckoutContent() {
                     </div>
                     <div className="flex items-center gap-3 flex-shrink-0">
                       <span className="text-white font-bold text-sm">R$ {upsell.price.toFixed(2).replace('.', ',')}</span>
-                      {addedUpsells.includes(upsell.serviceId) ? (
+                      {isAdded ? (
                         <button
                           onClick={() => handleAddUpsell(upsell)}
                           className="bg-green-500/20 text-green-400 text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-red-500/20 hover:text-red-400 transition-colors whitespace-nowrap"
@@ -595,8 +617,24 @@ function CheckoutContent() {
                       )}
                     </div>
                   </div>
+
+                  {isAdded && upsell.needsLink && (
+                    <div className="mt-3 pt-3 border-t border-volt-border">
+                      <label className="block text-volt-muted text-[10px] sm:text-xs mb-1.5">
+                        📎 {upsell.linkLabel}
+                      </label>
+                      <input
+                        type="text"
+                        value={upsellLinks[upsell.serviceId] || ''}
+                        onChange={(e) => setUpsellLinks(prev => ({ ...prev, [upsell.serviceId]: e.target.value }))}
+                        placeholder={upsell.linkPlaceholder}
+                        className="w-full bg-volt-dark border border-volt-border rounded-lg px-3 py-2 text-white text-xs sm:text-sm placeholder:text-volt-muted/50 focus:outline-none focus:border-volt-primary/50 transition-colors"
+                      />
+                    </div>
+                  )}
                 </div>
-              ))}
+                )
+              })}
             </div>
           </div>
 

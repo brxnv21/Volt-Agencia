@@ -165,34 +165,44 @@ export async function POST(request: NextRequest) {
 
       console.log(`[PEDIDO PAGO] ${order.orderId} - ${order.serviceName} x${order.quantity} - R$ ${order.price}`)
 
-      let turboOrderId: number | null = null
-      let turboError = ''
+      const allErrors: string[] = []
+      const allTurboIds: number[] = []
 
+      let mainResult: any
       try {
-        const turboResult = await createOrder(order.serviceId, order.link, order.quantity)
-
-        if (turboResult.order) {
-          turboOrderId = turboResult.order
-          console.log(`[TURBO] Pedido #${turboOrderId} criado com sucesso`)
-        } else {
-          turboError = turboResult.error || 'Erro desconhecido na API Turbosociais'
-          console.error(`[TURBO ERROR] ${turboError}`)
-
-          await sendErrorEmail({
-            orderId: order.orderId,
-            serviceName: order.serviceName,
-            quantity: order.quantity,
-            link: order.link,
-            contact: order.contact,
-            contactType: order.contactType,
-            error: turboError,
-            amount: order.price,
-          })
-        }
+        mainResult = await createOrder(order.serviceId, order.link, order.quantity)
       } catch (err: any) {
-        turboError = err.message || 'Falha na conexão com Turbosociais'
-        console.error(`[TURBO EXCEPTION]`, err)
+        mainResult = { error: err.message }
+      }
 
+      if (mainResult.order) {
+        allTurboIds.push(mainResult.order)
+        console.log(`[TURBO] Pedido principal #${mainResult.order} criado`)
+      } else {
+        const errMsg = mainResult.error || 'Erro ao enviar pedido principal'
+        allErrors.push(`Principal: ${errMsg}`)
+        console.error(`[TURBO ERROR] ${errMsg}`)
+      }
+
+      if (order.upsells && order.upsells.length > 0) {
+        for (const upsell of order.upsells) {
+          try {
+            const upsellResult = await createOrder(upsell.serviceId, upsell.link, upsell.qty)
+            if (upsellResult.order) {
+              allTurboIds.push(upsellResult.order)
+              console.log(`[TURBO] Upsell "${upsell.name}" #${upsellResult.order} criado`)
+            } else {
+              allErrors.push(`Upsell "${upsell.name}": ${upsellResult.error || 'Erro desconhecido'}`)
+              console.error(`[TURBO ERROR] Upsell "${upsell.name}": ${upsellResult.error}`)
+            }
+          } catch (err: any) {
+            allErrors.push(`Upsell "${upsell.name}": ${err.message}`)
+            console.error(`[TURBO EXCEPTION] Upsell "${upsell.name}"`, err)
+          }
+        }
+      }
+
+      if (allErrors.length > 0) {
         await sendErrorEmail({
           orderId: order.orderId,
           serviceName: order.serviceName,
@@ -200,12 +210,12 @@ export async function POST(request: NextRequest) {
           link: order.link,
           contact: order.contact,
           contactType: order.contactType,
-          error: turboError,
+          error: allErrors.join('\n'),
           amount: order.price,
         })
       }
 
-      if (turboOrderId) {
+      if (allTurboIds.length > 0) {
         await sendSuccessEmail({
           orderId: order.orderId,
           serviceName: order.serviceName,
@@ -213,7 +223,7 @@ export async function POST(request: NextRequest) {
           link: order.link,
           contact: order.contact,
           contactType: order.contactType,
-          turboOrderId,
+          turboOrderId: allTurboIds[0],
           amount: order.price,
         })
       }
@@ -221,8 +231,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         received: true,
         orderId: order.orderId,
-        turboOrderId,
-        turboError,
+        turboIds: allTurboIds,
+        errors: allErrors,
       })
     }
 

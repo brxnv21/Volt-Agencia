@@ -1,3 +1,10 @@
+export interface UpsellRef {
+  serviceId: number
+  qty: number
+  link: string
+  name: string
+}
+
 export interface OrderRef {
   orderId: string
   serviceId: number
@@ -7,12 +14,17 @@ export interface OrderRef {
   link: string
   serviceName: string
   price: number
+  upsells: UpsellRef[]
 }
 
 const SEPARATOR = '|'
-const PREFIX = 'VA2'
+const PREFIX = 'VA3'
 
 export function encodeOrderRef(data: OrderRef): string {
+  const upsellStr = data.upsells.map(u =>
+    `${u.serviceId}:${u.qty}:${encodeURIComponent(u.link)}:${encodeURIComponent(u.name)}`
+  ).join(';')
+
   const parts = [
     PREFIX,
     data.orderId,
@@ -23,6 +35,7 @@ export function encodeOrderRef(data: OrderRef): string {
     data.link,
     data.serviceName,
     String(data.price),
+    upsellStr,
   ]
   return parts.join(SEPARATOR)
 }
@@ -30,7 +43,21 @@ export function encodeOrderRef(data: OrderRef): string {
 export function decodeOrderRef(ref: string): OrderRef | null {
   try {
     const parts = ref.split(SEPARATOR)
-    if (parts.length < 9 || parts[0] !== PREFIX) return null
+    if (parts.length < 9 || (parts[0] !== PREFIX && parts[0] !== 'VA2')) return null
+
+    let upsells: UpsellRef[] = []
+    if (parts[0] === PREFIX && parts[9]) {
+      upsells = parts[9].split(';').filter(Boolean).map(u => {
+        const [serviceId, qty, link, name] = u.split(':')
+        return {
+          serviceId: Number(serviceId),
+          qty: Number(qty),
+          link: decodeURIComponent(link || ''),
+          name: decodeURIComponent(name || ''),
+        }
+      })
+    }
+
     return {
       orderId: parts[1],
       serviceId: Number(parts[2]),
@@ -40,6 +67,7 @@ export function decodeOrderRef(ref: string): OrderRef | null {
       link: parts[6],
       serviceName: parts[7],
       price: Number(parts[8]),
+      upsells,
     }
   } catch {
     return null
