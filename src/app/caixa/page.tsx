@@ -333,13 +333,13 @@ export default function CaixaPage() {
         </div>
 
         <div className="bg-gradient-to-br from-green-600/25 to-gray-900 border border-green-500/40 rounded-2xl p-5 sm:p-6 mb-4 text-center">
-          <p className="text-green-400/80 text-[11px] sm:text-xs font-medium uppercase tracking-wider mb-1">💰 Saldo no Mercado Pago</p>
+          <p className="text-green-400/80 text-[11px] sm:text-xs font-medium uppercase tracking-wider mb-1">💰 Recebido no Mercado Pago</p>
           {mpBalance !== null ? (
             <>
               <p className="text-3xl sm:text-4xl font-bold text-white">
                 R$ {mpBalance.toFixed(2).replace('.', ',')}
               </p>
-              <p className="text-gray-500 text-[10px] mt-1.5">valor real, atualizado direto da conta · recarrega a cada 1 min</p>
+              <p className="text-gray-500 text-[10px] mt-1.5">total de vendas aprovadas · direto da conta MP · últimos 12 meses</p>
             </>
           ) : (
             <p className="text-xl sm:text-2xl font-bold text-gray-500 animate-pulse">carregando…</p>
