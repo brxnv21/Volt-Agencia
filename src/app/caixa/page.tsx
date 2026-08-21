@@ -68,6 +68,7 @@ export default function CaixaPage() {
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [rangeDays, setRangeDays] = useState(30)
+  const [mpBalance, setMpBalance] = useState<number | null>(null)
   const [form, setForm] = useState({
     date: new Date().toISOString().slice(0, 10),
     type: 'saida' as CashEntry['type'],
@@ -116,6 +117,14 @@ export default function CaixaPage() {
     setManual(list)
     localStorage.setItem('volt_caixa_entries_v2', JSON.stringify(list))
   }
+
+  useEffect(() => {
+    if (!authenticated) return
+    fetch('/api/admin/mp-balance?key=volt2026')
+      .then(r => r.json())
+      .then(d => { if (typeof d.available === 'number') setMpBalance(d.available) })
+      .catch(() => {})
+  }, [authenticated])
 
   const all = useMemo(
     () => [...mpPayments, ...manual].sort((a, b) => b.date.localeCompare(a.date)),
@@ -323,7 +332,21 @@ export default function CaixaPage() {
           ))}
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+        <div className="bg-gradient-to-br from-green-600/25 to-gray-900 border border-green-500/40 rounded-2xl p-5 sm:p-6 mb-4 text-center">
+          <p className="text-green-400/80 text-[11px] sm:text-xs font-medium uppercase tracking-wider mb-1">💰 Saldo no Mercado Pago</p>
+          {mpBalance !== null ? (
+            <>
+              <p className="text-3xl sm:text-4xl font-bold text-white">
+                R$ {mpBalance.toFixed(2).replace('.', ',')}
+              </p>
+              <p className="text-gray-500 text-[10px] mt-1.5">valor real, atualizado direto da conta · recarrega a cada 1 min</p>
+            </>
+          ) : (
+            <p className="text-xl sm:text-2xl font-bold text-gray-500 animate-pulse">carregando…</p>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-1">
           <div className="bg-gray-900 border border-green-500/20 rounded-xl p-3 text-center">
             <p className="text-gray-500 text-[10px] mb-1">Total Entradas</p>
             <p className="text-lg sm:text-2xl font-bold text-green-400">R$ {totalEntradas.toFixed(2)}</p>
@@ -341,6 +364,9 @@ export default function CaixaPage() {
             <p className={`text-lg sm:text-2xl font-bold ${lucro >= 0 ? 'text-white' : 'text-red-400'}`}>R$ {lucro.toFixed(2)}</p>
           </div>
         </div>
+        <p className="text-gray-600 text-[10px] text-center mb-4">
+          Os cards acima somam apenas as movimentações do período — o saldo verdadeiro é o Mercado Pago lá em cima
+        </p>
 
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 mb-4">
           <div className="flex items-center justify-between mb-3">
