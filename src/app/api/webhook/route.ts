@@ -3,6 +3,7 @@ import { getPayment } from '@/lib/mercadopago'
 import { decodeOrderRef } from '@/lib/orderRef'
 import { createOrder } from '@/lib/turbosociais'
 import { Resend } from 'resend'
+import { sendPush } from '@/lib/push'
 
 const OWNER_EMAIL = 'bnsiq2015@gmail.com'
 
@@ -165,6 +166,13 @@ export async function POST(request: NextRequest) {
 
       console.log(`[PEDIDO PAGO] ${order.orderId} - ${order.serviceName} x${order.quantity} - R$ ${order.price}`)
 
+      await sendPush(
+        `💰 VENDA! R$ ${order.price.toFixed(2).replace('.', ',')}`,
+        `${order.serviceName} x${order.quantity}\nPedido: ${order.orderId}`,
+        ['moneybag', 'chart_with_upwards_trend'],
+        5,
+      )
+
       const allErrors: string[] = []
       const allTurboIds: number[] = []
 
@@ -203,6 +211,12 @@ export async function POST(request: NextRequest) {
       }
 
       if (allErrors.length > 0) {
+        await sendPush(
+          `⚠️ ERRO no pedido ${order.orderId}`,
+          `Envie manualmente no Turbosociais.\n${allErrors.join('\n')}`,
+          ['warning'],
+          5,
+        )
         await sendErrorEmail({
           orderId: order.orderId,
           serviceName: order.serviceName,
