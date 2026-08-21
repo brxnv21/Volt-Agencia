@@ -161,8 +161,9 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     console.error('Checkout error:', error)
+    const detail = error instanceof Error ? error.message : JSON.stringify(error)
     return NextResponse.json(
-      { error: 'Erro ao processar checkout' },
+      { error: `Erro no pagamento: ${detail}` },
       { status: 500 }
     )
   }

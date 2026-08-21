@@ -44,10 +44,13 @@ export async function createPreference(params: {
         installments: 1,
         // Somente PIX: excluído tudo que não é transferência -> com binary_mode,
         // o checkout pula a tela de escolha e cai direto no QR Code do Pix.
+        // account_money só aceita exclusão por MÉTODO, não por tipo.
         excluded_payment_types: [
           { id: 'credit_card' },
           { id: 'debit_card' },
           { id: 'ticket' },
+        ],
+        excluded_payment_methods: [
           { id: 'account_money' },
         ],
       },
