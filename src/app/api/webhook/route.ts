@@ -1,26 +1,70 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayment } from '@/lib/mercadopago'
 import { decodeOrderRef } from '@/lib/orderRef'
-import { createOrder, getBalance } from '@/lib/turbosociais'
+import { createOrder } from '@/lib/turbosociais'
 import { Resend } from 'resend'
 
 const OWNER_EMAIL = 'bnsiq2015@gmail.com'
 
-async function sendErrorEmail(subject: string, body: string) {
+function clientWhatsAppUrl(phone: string): string {
+  const clean = phone.replace(/\D/g, '')
+  return `https://api.whatsapp.com/send?phone=${clean}`
+}
+
+async function sendErrorEmail(data: {
+  orderId: string
+  serviceName: string
+  quantity: number
+  link: string
+  contact: string
+  contactType: string
+  error: string
+  amount: number
+}) {
   if (!process.env.RESEND_API_KEY) return
+  const contactLabel = data.contactType === 'whatsapp' ? 'WhatsApp' : 'E-mail'
+  const clientWa = data.contactType === 'whatsapp' ? clientWhatsAppUrl(data.contact) : null
+
   try {
     const resend = new Resend(process.env.RESEND_API_KEY)
     await resend.emails.send({
       from: 'VOLT Alertas <onboarding@resend.dev>',
       to: OWNER_EMAIL,
-      subject: `⚠️ ${subject}`,
+      subject: `⚠️ ERRO pedido ${data.orderId} - Envie manualmente`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <div style="background: #DC2626; padding: 20px; text-align: center; border-radius: 12px 12px 0 0;">
-            <h1 style="color: white; margin: 0; font-size: 20px;">⚠️ ${subject}</h1>
+            <h1 style="color: white; margin: 0; font-size: 20px;">⚠️ ERRO - Envie manualmente</h1>
           </div>
           <div style="background: #1a1a1a; padding: 20px; border-radius: 0 0 12px 12px;">
-            <pre style="color: #ccc; white-space: pre-wrap; font-size: 14px;">${body}</pre>
+            <div style="background: #2a2a2a; border-radius: 8px; padding: 16px; margin-bottom: 12px;">
+              <p style="color: #999; margin: 4px 0;">Pedido VOLT</p>
+              <p style="color: white; margin: 4px 0; font-weight: bold;">${data.orderId}</p>
+            </div>
+            <div style="background: #2a2a2a; border-radius: 8px; padding: 16px; margin-bottom: 12px;">
+              <p style="color: #999; margin: 4px 0;">Serviço</p>
+              <p style="color: white; margin: 4px 0; font-weight: bold;">${data.serviceName} x${data.quantity}</p>
+            </div>
+            <div style="background: #2a2a2a; border-radius: 8px; padding: 16px; margin-bottom: 12px;">
+              <p style="color: #999; margin: 4px 0;">Link do cliente</p>
+              <p style="color: #EAB308; margin: 4px 0; word-break: break-all;">${data.link}</p>
+            </div>
+            <div style="background: #2a2a2a; border-radius: 8px; padding: 16px; margin-bottom: 12px;">
+              <p style="color: #999; margin: 4px 0;">Valor</p>
+              <p style="color: #22c55e; margin: 4px 0; font-size: 18px; font-weight: bold;">R$ ${data.amount.toFixed(2).replace('.', ',')}</p>
+            </div>
+            <div style="background: #7F1D1D; border-radius: 8px; padding: 16px; margin-bottom: 12px;">
+              <p style="color: #FCA5A5; margin: 4px 0;">Erro</p>
+              <p style="color: white; margin: 4px 0; font-weight: bold;">${data.error}</p>
+            </div>
+            <div style="background: #2a2a2a; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
+              <p style="color: #999; margin: 4px 0;">Contato do cliente (${contactLabel})</p>
+              <p style="color: white; margin: 4px 0; font-weight: bold;">${data.contact}</p>
+              ${clientWa ? `<a href="${clientWa}" style="display: inline-block; margin-top: 8px; background: #25D366; color: #000; padding: 8px 16px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 13px;">📱 Falar com cliente no WhatsApp</a>` : ''}
+            </div>
+            <a href="https://turbosociais.com" style="display: block; background: #EAB308; color: #000; text-align: center; padding: 14px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px;">
+              Abrir Turbosociais e enviar manualmente
+            </a>
           </div>
         </div>
       `,
@@ -41,12 +85,11 @@ async function sendSuccessEmail(data: {
   amount: number
 }) {
   if (!process.env.RESEND_API_KEY) return
+  const contactLabel = data.contactType === 'whatsapp' ? 'WhatsApp' : 'E-mail'
+  const clientWa = data.contactType === 'whatsapp' ? clientWhatsAppUrl(data.contact) : null
+
   try {
     const resend = new Resend(process.env.RESEND_API_KEY)
-    const whatsappUrl = `https://api.whatsapp.com/send?phone=5527996115482&text=${encodeURIComponent(
-      `✅ PEDIDO ENVIADO AUTOMATICAMENTE\n\nPedido VOLT: ${data.orderId}\nPedido Turbo: #${data.turboOrderId}\nServiço: ${data.serviceName}\nQuantidade: ${data.quantity}\nLink: ${data.link}\n\nO Turbosociais está processando a entrega.`
-    )}`
-
     await resend.emails.send({
       from: 'VOLT Agência <onboarding@resend.dev>',
       to: OWNER_EMAIL,
@@ -70,14 +113,21 @@ async function sendSuccessEmail(data: {
               <p style="color: white; margin: 4px 0; font-weight: bold;">${data.serviceName} x${data.quantity}</p>
             </div>
             <div style="background: #2a2a2a; border-radius: 8px; padding: 16px; margin-bottom: 12px;">
-              <p style="color: #999; margin: 4px 0;">Link</p>
+              <p style="color: #999; margin: 4px 0;">Link do cliente</p>
               <p style="color: #EAB308; margin: 4px 0; word-break: break-all;">${data.link}</p>
             </div>
-            <div style="background: #2a2a2a; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
+            <div style="background: #2a2a2a; border-radius: 8px; padding: 16px; margin-bottom: 12px;">
               <p style="color: #999; margin: 4px 0;">Valor</p>
-              <p style="color: #22c55e; margin: 4px 0; font-size: 20px; font-weight: bold;">R$ ${data.amount.toFixed(2).replace('.', ',')}</p>
+              <p style="color: #22c55e; margin: 4px 0; font-size: 18px; font-weight: bold;">R$ ${data.amount.toFixed(2).replace('.', ',')}</p>
             </div>
-            <a href="${whatsappUrl}" style="display: block; background: #25D366; color: #000; text-align: center; padding: 14px; border-radius: 8px; text-decoration: none; font-weight: bold;">Verificar no Turbosociais</a>
+            <div style="background: #2a2a2a; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
+              <p style="color: #999; margin: 4px 0;">Contato do cliente (${contactLabel})</p>
+              <p style="color: white; margin: 4px 0; font-weight: bold;">${data.contact}</p>
+              ${clientWa ? `<a href="${clientWa}" style="display: inline-block; margin-top: 8px; background: #25D366; color: #000; padding: 8px 16px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 13px;">📱 Falar com cliente no WhatsApp</a>` : ''}
+            </div>
+            <a href="https://turbosociais.com" style="display: block; background: #25D366; color: #000; text-align: center; padding: 14px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px;">
+              Acompanhar no Turbosociais
+            </a>
           </div>
         </div>
       `,
@@ -116,7 +166,7 @@ export async function POST(request: NextRequest) {
       console.log(`[PEDIDO PAGO] ${order.orderId} - ${order.serviceName} x${order.quantity} - R$ ${order.price}`)
 
       let turboOrderId: number | null = null
-      let turboError: string | null = null
+      let turboError = ''
 
       try {
         const turboResult = await createOrder(order.serviceId, order.link, order.quantity)
@@ -128,31 +178,31 @@ export async function POST(request: NextRequest) {
           turboError = turboResult.error || 'Erro desconhecido na API Turbosociais'
           console.error(`[TURBO ERROR] ${turboError}`)
 
-          await sendErrorEmail(
-            `Erro ao enviar pedido ${order.orderId}`,
-            `Erro ao enviar pedido para Turbosociais.\n\n` +
-            `Pedido VOLT: ${order.orderId}\n` +
-            `Serviço: ${order.serviceName}\n` +
-            `Quantidade: ${order.quantity}\n` +
-            `Link: ${order.link}\n` +
-            `Erro: ${turboError}\n\n` +
-            `Ação necessária: Envie manualmente em turbosociais.com`
-          )
+          await sendErrorEmail({
+            orderId: order.orderId,
+            serviceName: order.serviceName,
+            quantity: order.quantity,
+            link: order.link,
+            contact: order.contact,
+            contactType: order.contactType,
+            error: turboError,
+            amount: order.price,
+          })
         }
       } catch (err: any) {
         turboError = err.message || 'Falha na conexão com Turbosociais'
         console.error(`[TURBO EXCEPTION]`, err)
 
-        await sendErrorEmail(
-          `Falha na conexão Turbosociais - Pedido ${order.orderId}`,
-          `Falha ao conectar com a API do Turbosociais.\n\n` +
-          `Pedido VOLT: ${order.orderId}\n` +
-          `Serviço: ${order.serviceName}\n` +
-          `Quantidade: ${order.quantity}\n` +
-          `Link: ${order.link}\n` +
-          `Erro: ${turboError}\n\n` +
-          `Ação necessária: Verifique a conexão e envie manualmente em turbosociais.com`
-        )
+        await sendErrorEmail({
+          orderId: order.orderId,
+          serviceName: order.serviceName,
+          quantity: order.quantity,
+          link: order.link,
+          contact: order.contact,
+          contactType: order.contactType,
+          error: turboError,
+          amount: order.price,
+        })
       }
 
       if (turboOrderId) {
