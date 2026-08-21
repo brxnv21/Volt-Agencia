@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createPreference } from '@/lib/mercadopago'
+import { createPreference, createPixPayment } from '@/lib/mercadopago'
 import { encodeOrderRef } from '@/lib/orderRef'
 import { generateOrderId } from '@/lib/orders'
 import { Resend } from 'resend'
@@ -147,16 +147,22 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    const preference = await createPreference({
-      title: `VOLT Agência - ${fullServiceName}`,
-      quantity: 1,
-      unitPrice: price,
+    // PIX DIRETO: gera o pagamento via API e o cliente paga na NOSSA página
+    const pix: any = await createPixPayment({
+      amount: price,
+      description: `VOLT Agência - ${fullServiceName}`,
       externalReference: orderRef,
+      orderId,
       email: contactType === 'email' ? contact : undefined,
     })
 
+    const tx = pix?.point_of_interaction?.transaction_data
+    if (!pix?.id || !tx?.qr_code || !tx?.qr_code_base64) {
+      throw new Error(`MP não retornou QR Code (status ${pix?.status ?? 'desconhecido'})`)
+    }
+
     return NextResponse.json({
-      checkoutUrl: preference.init_point,
+      pixUrl: `/pagamento?pid=${pix.id}&order=${orderId}&value=${price}`,
       orderId,
     })
   } catch (error) {

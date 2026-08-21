@@ -65,3 +65,29 @@ export async function getPayment(paymentId: string) {
   const result = await payment.get({ id: paymentId })
   return result
 }
+
+// Cria um pagamento PIX direto pela API (sem passar pelo Checkout Pro hospedado).
+// Retorna id do pagamento + QR Code (imagem base64 e código copia-e-cola).
+export async function createPixPayment(params: {
+  amount: number
+  description: string
+  externalReference: string
+  orderId: string
+  email?: string
+}) {
+  const payment = new Payment(client)
+  const result: any = await payment.create({
+    body: {
+      transaction_amount: params.amount,
+      description: params.description,
+      payment_method_id: 'pix',
+      external_reference: params.externalReference,
+      notification_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhook`,
+      payer: {
+        email: params.email || `${params.orderId.toLowerCase()}@pix.voltapp.com.br`,
+        first_name: 'Cliente',
+      },
+    },
+  })
+  return result
+}

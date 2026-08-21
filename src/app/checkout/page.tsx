@@ -335,6 +335,11 @@ function CheckoutContent() {
         return
       }
 
+      if (data.pixUrl) {
+        window.location.href = data.pixUrl
+        return
+      }
+
       if (data.checkoutUrl) {
         window.location.href = data.checkoutUrl
       }
