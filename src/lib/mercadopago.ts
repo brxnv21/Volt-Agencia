@@ -48,6 +48,7 @@ export async function createPreference(params: {
           { id: 'credit_card' },
           { id: 'debit_card' },
           { id: 'ticket' },
+          { id: 'account_money' },
         ],
       },
     },
