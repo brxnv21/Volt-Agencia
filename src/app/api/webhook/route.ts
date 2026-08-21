@@ -171,6 +171,7 @@ export async function POST(request: NextRequest) {
         `${order.serviceName} x${order.quantity}\nPedido: ${order.orderId}`,
         ['moneybag', 'chart_with_upwards_trend'],
         5,
+        process.env.NTFY_TOPIC_SALE,
       )
 
       const allErrors: string[] = []

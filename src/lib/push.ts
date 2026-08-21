@@ -3,8 +3,8 @@
 
 const NTFY_SERVER = 'https://ntfy.sh'
 
-export async function sendPush(title: string, message: string, tags: string[] = [], priority: 3 | 4 | 5 = 5): Promise<boolean> {
-  const topic = process.env.NTFY_TOPIC
+export async function sendPush(title: string, message: string, tags: string[] = [], priority: 3 | 4 | 5 = 5, topicOverride?: string): Promise<boolean> {
+  const topic = topicOverride || process.env.NTFY_TOPIC
   if (!topic) {
     console.log('[PUSH] NTFY_TOPIC nao configurado — push ignorado')
     return false
