@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { playCashRegisterSound } from '@/lib/sounds'
 
 interface Payment {
@@ -43,7 +43,90 @@ const TURBO_STATUS: Record<string, { label: string; color: string; icon: string 
   Canceled: { label: 'Cancelado', color: 'text-red-400', icon: '❌' },
 }
 
-type Tab = 'vendas' | 'tracking'
+const TIME_FILTERS = [
+  { id: '1h', label: '1h', ms: 3600000 },
+  { id: '5h', label: '5h', ms: 18000000 },
+  { id: '12h', label: '12h', ms: 43200000 },
+  { id: '24h', label: '24h', ms: 86400000 },
+  { id: '7d', label: '7d', ms: 604800000 },
+  { id: '15d', label: '15d', ms: 1296000000 },
+  { id: '30d', label: '30d', ms: 2592000000 },
+  { id: '60d', label: '60d', ms: 5184000000 },
+  { id: '90d', label: '90d', ms: 7776000000 },
+  { id: '180d', label: '180d', ms: 15552000000 },
+  { id: '365d', label: '365d', ms: 31536000000 },
+  { id: 'all', label: 'Tudo', ms: Infinity },
+]
+
+function filterByTime(payments: Payment[], ms: number): Payment[] {
+  if (ms === Infinity) return payments
+  const cutoff = Date.now() - ms
+  return payments.filter(p => new Date(p.date).getTime() >= cutoff)
+}
+
+function groupByDay(payments: Payment[]): Record<string, Payment[]> {
+  const groups: Record<string, Payment[]> = {}
+  for (const p of payments) {
+    const d = new Date(p.date)
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    if (!groups[key]) groups[key] = []
+    groups[key].push(p)
+  }
+  return groups
+}
+
+function groupByHour(payments: Payment[]): Record<string, Payment[]> {
+  const groups: Record<string, Payment[]> = {}
+  for (const p of payments) {
+    const d = new Date(p.date)
+    const key = `${String(d.getHours()).padStart(2, '0')}:00`
+    if (!groups[key]) groups[key] = []
+    groups[key].push(p)
+  }
+  return groups
+}
+
+function BarChart({ data, color }: {
+  data: { label: string; value: number; count: number }[]
+  color: string
+}) {
+  const maxVal = Math.max(...data.map(d => d.value), 1)
+
+  if (data.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-40 text-gray-600 text-sm">
+        Nenhum dado neste período
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex items-end gap-1 sm:gap-2 h-48 sm:h-56 overflow-x-auto pb-6 relative">
+      {data.map((d, i) => {
+        const pct = maxVal > 0 ? (d.value / maxVal) * 100 : 0
+        return (
+          <div key={i} className="flex-1 min-w-[24px] flex flex-col items-center gap-1 relative group">
+            <div className="absolute -top-8 bg-gray-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
+              {d.count} {d.count === 1 ? 'pedido' : 'pedidos'} — R$ {d.value.toFixed(0)}
+            </div>
+            <div className="w-full relative flex-1 flex items-end">
+              <div
+                className="w-full rounded-t-md transition-all duration-500"
+                style={{
+                  height: `${Math.max(pct, 2)}%`,
+                  background: `linear-gradient(to top, ${color}33, ${color})`,
+                }}
+              />
+            </div>
+            <span className="text-gray-600 text-[8px] sm:text-[9px] absolute -bottom-5 truncate max-w-[40px] text-center">{d.label}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+type Tab = 'vendas' | 'grafico' | 'tracking'
 
 export default function AdminPage() {
   const [key, setKey] = useState('')
@@ -59,6 +142,7 @@ export default function AdminPage() {
   const [turboLoading, setTurboLoading] = useState(false)
   const [turboBalance, setTurboBalance] = useState<string | null>(null)
   const [manualOrderId, setManualOrderId] = useState('')
+  const [timeFilter, setTimeFilter] = useState('30d')
   const prevCountRef = useRef(0)
 
   useEffect(() => {
@@ -183,6 +267,35 @@ export default function AdminPage() {
     }
   }, [authenticated])
 
+  const approved = useMemo(() => payments.filter(p => p.status === 'approved'), [payments])
+  const total = useMemo(() => approved.reduce((sum, p) => sum + p.amount, 0), [approved])
+
+  const currentFilter = TIME_FILTERS.find(f => f.id === timeFilter) || TIME_FILTERS[TIME_FILTERS.length - 1]
+  const filteredApproved = useMemo(() => filterByTime(approved, currentFilter.ms), [approved, currentFilter])
+  const filteredTotal = useMemo(() => filteredApproved.reduce((sum, p) => sum + p.amount, 0), [filteredApproved])
+
+  const graphData = useMemo(() => {
+    const useHour = currentFilter.ms <= 86400000
+    const groups = useHour ? groupByHour(filteredApproved) : groupByDay(filteredApproved)
+    const entries = Object.entries(groups).sort(([a], [b]) => a.localeCompare(b))
+    return entries.map(([key, ps]) => ({
+      label: key.length > 5 ? key.slice(5) : key,
+      value: ps.reduce((s, p) => s + p.amount, 0),
+      count: ps.length,
+    }))
+  }, [filteredApproved, currentFilter])
+
+  const methodData = useMemo(() => {
+    const groups: Record<string, { value: number; count: number }> = {}
+    for (const p of filteredApproved) {
+      const m = p.method === 'pix' ? 'PIX' : 'Cartão'
+      if (!groups[m]) groups[m] = { value: 0, count: 0 }
+      groups[m].value += p.amount
+      groups[m].count++
+    }
+    return groups
+  }, [filteredApproved])
+
   if (!authenticated) {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4">
@@ -217,16 +330,9 @@ export default function AdminPage() {
     )
   }
 
-  const approved = payments.filter((p) => p.status === 'approved')
-  const total = approved.reduce((sum, p) => sum + p.amount, 0)
-  const totalCost = approved.reduce((sum, p) => {
-    const match = p.serviceName.match(/[\d.]+(?=\.)/)
-    return sum + (parseFloat(p.serviceName.match(/R\$ ([\d,]+)/)?.[1]?.replace(',', '.') || '0') || 0)
-  }, 0)
-
   return (
     <div className="min-h-screen bg-gray-950 p-3 sm:p-4 md:p-8">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-5xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <img src="/logo.jpg" alt="VOLT" className="w-8 h-8 rounded-full" />
@@ -250,23 +356,26 @@ export default function AdminPage() {
           </div>
         </div>
 
-        <div className="flex gap-2 mb-6">
-          <button
-            onClick={() => setTab('vendas')}
-            className={`flex-1 py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all ${
-              tab === 'vendas' ? 'bg-yellow-500 text-gray-900' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-            }`}
-          >
-            💰 Vendas
-          </button>
-          <button
-            onClick={() => setTab('tracking')}
-            className={`flex-1 py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all ${
-              tab === 'tracking' ? 'bg-blue-500 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-            }`}
-          >
-            📦 Tracking
-          </button>
+        <div className="flex gap-1.5 mb-6">
+          {([
+            { id: 'vendas' as Tab, label: '💰 Vendas', color: 'yellow' },
+            { id: 'grafico' as Tab, label: '📊 Gráfico', color: 'purple' },
+            { id: 'tracking' as Tab, label: '📦 Tracking', color: 'blue' },
+          ]).map(t => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`flex-1 py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all ${
+                tab === t.id
+                  ? t.id === 'vendas' ? 'bg-yellow-500 text-gray-900'
+                    : t.id === 'grafico' ? 'bg-purple-500 text-white'
+                    : 'bg-blue-500 text-white'
+                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
 
         {tab === 'vendas' && (
@@ -334,6 +443,112 @@ export default function AdminPage() {
                 })}
               </div>
             )}
+          </>
+        )}
+
+        {tab === 'grafico' && (
+          <>
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 mb-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                <div className="bg-gray-800 rounded-lg p-3 text-center">
+                  <p className="text-gray-500 text-[10px] mb-1">Pedidos</p>
+                  <p className="text-xl font-bold text-white">{filteredApproved.length}</p>
+                </div>
+                <div className="bg-gray-800 rounded-lg p-3 text-center">
+                  <p className="text-gray-500 text-[10px] mb-1">Faturamento</p>
+                  <p className="text-xl font-bold text-green-400">R$ {filteredTotal.toFixed(0)}</p>
+                </div>
+                <div className="bg-gray-800 rounded-lg p-3 text-center">
+                  <p className="text-gray-500 text-[10px] mb-1">Ticket médio</p>
+                  <p className="text-xl font-bold text-blue-400">
+                    R$ {filteredApproved.length > 0 ? (filteredTotal / filteredApproved.length).toFixed(2) : '0,00'}
+                  </p>
+                </div>
+                <div className="bg-gray-800 rounded-lg p-3 text-center">
+                  <p className="text-gray-500 text-[10px] mb-1">Método</p>
+                  <p className="text-xl font-bold text-purple-400">
+                    {Object.entries(methodData).sort(([, a], [, b]) => b.value - a.value)[0]?.[0] || '—'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-1.5 mb-5">
+                {TIME_FILTERS.map(f => (
+                  <button
+                    key={f.id}
+                    onClick={() => setTimeFilter(f.id)}
+                    className={`px-2.5 py-1.5 rounded-lg text-[10px] sm:text-xs font-medium transition-all ${
+                      timeFilter === f.id
+                        ? 'bg-purple-500 text-white'
+                        : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white'
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="overflow-x-auto">
+                <div className="min-w-[300px]">
+                  <BarChart
+                    data={graphData}
+                    color="#A855F7"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+                <h3 className="text-white text-sm font-medium mb-3">Por método de pagamento</h3>
+                <div className="space-y-2">
+                  {Object.entries(methodData).map(([method, data]) => (
+                    <div key={method} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{method === 'PIX' ? '⚡' : '💳'}</span>
+                        <span className="text-white text-sm">{method}</span>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-white text-sm font-medium">R$ {data.value.toFixed(2)}</p>
+                        <p className="text-gray-600 text-[10px]">{data.count} {data.count === 1 ? 'pedido' : 'pedidos'}</p>
+                      </div>
+                    </div>
+                  ))}
+                  {Object.keys(methodData).length === 0 && (
+                    <p className="text-gray-600 text-sm text-center py-4">Sem dados</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+                <h3 className="text-white text-sm font-medium mb-3">Top serviços</h3>
+                <div className="space-y-2">
+                  {(() => {
+                    const svcMap: Record<string, { value: number; count: number }> = {}
+                    for (const p of filteredApproved) {
+                      if (!svcMap[p.serviceName]) svcMap[p.serviceName] = { value: 0, count: 0 }
+                      svcMap[p.serviceName].value += p.amount
+                      svcMap[p.serviceName].count++
+                    }
+                    return Object.entries(svcMap)
+                      .sort(([, a], [, b]) => b.value - a.value)
+                      .slice(0, 5)
+                      .map(([name, data]) => (
+                        <div key={name} className="flex items-center justify-between">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-white text-sm truncate">{name}</p>
+                            <p className="text-gray-600 text-[10px]">{data.count}x</p>
+                          </div>
+                          <p className="text-green-400 text-sm font-medium ml-2">R$ {data.value.toFixed(0)}</p>
+                        </div>
+                      ))
+                  })()}
+                  {filteredApproved.length === 0 && (
+                    <p className="text-gray-600 text-sm text-center py-4">Sem dados</p>
+                  )}
+                </div>
+              </div>
+            </div>
           </>
         )}
 
