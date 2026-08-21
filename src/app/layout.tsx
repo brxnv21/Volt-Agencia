@@ -12,6 +12,13 @@ export const metadata: Metadata = {
     description: 'Seguidores, curtidas, visualizações e comentários com entrega instantânea.',
     type: 'website',
   },
+  manifest: '/manifest.json',
+  themeColor: '#EAB308',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'VOLT',
+  },
 }
 
 export default function RootLayout({

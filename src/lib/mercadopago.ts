@@ -39,6 +39,7 @@ export async function createPreference(params: {
       },
       auto_return: 'approved',
       binary_mode: true,
+      notification_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhook`,
       payment_methods: {
         installments: 1,
         excluded_payment_types: [{ id: 'debit_card' }, { id: 'ticket' }],
