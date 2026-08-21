@@ -19,6 +19,8 @@ const CATEGORIES: Record<string, string> = {
   PIX: '⚡',
   'Cartão': '💳',
   'Saldo Inicial': '💰',
+  'Aporte': '💵',
+  'Venda': '🤝',
   Withdrawal: '🏦',
   'Meta Ads': '📢',
 }
@@ -39,9 +41,11 @@ const FILTERS = [
 ]
 
 const DEFAULT_MANUAL: CashEntry[] = [
-  { id: 'def-turbo', date: '2026-08-20', type: 'investimento', description: 'Recarga Turbosociais', amount: 35, category: 'Turbosociais', source: 'manual' },
-  { id: 'def-fbads', date: '2026-08-20', type: 'investimento', description: 'Facebook Ads - campanha inicial', amount: 100, category: 'Facebook Ads', source: 'manual' },
-  { id: 'def-fbcob', date: '2026-08-20', type: 'saida', description: 'Cobranca Facebook Ads', amount: 30, category: 'Meta Ads', source: 'manual' },
+  { id: 'def-turbo', date: '2026-08-20', type: 'investimento', description: 'Recarga Turbosociais — saldo para pedidos', amount: 35, category: 'Turbosociais', source: 'manual' },
+  { id: 'def-fbcob', date: '2026-08-21', type: 'saida', description: 'Cobrança cartão — Meta Ads (limite de faturamento batido)', amount: 30, category: 'Meta Ads', source: 'manual' },
+  { id: 'def-turbo2', date: '2026-08-21', type: 'investimento', description: 'Recarga Turbosociais — pedido 3.000 seguidores BR (venda WhatsApp)', amount: 50, category: 'Turbosociais', source: 'manual' },
+  { id: 'def-wa-mp', date: '2026-08-21', type: 'entrada', description: 'Sobra da venda WhatsApp (3.000 BR) enviada ao Mercado Pago', amount: 38.19, category: 'Mercado Pago', source: 'manual' },
+  { id: 'def-aporte', date: '2026-08-21', type: 'entrada', description: 'Aporte do dono no caixa da operação', amount: 49, category: 'Aporte', source: 'manual' },
 ]
 
 function Bar({ val, max, cls }: { val: number; max: number; cls: string }) {
@@ -74,7 +78,7 @@ export default function CaixaPage() {
 
   useEffect(() => {
     if (localStorage.getItem('volt_caixa_key') === 'volt2026') setAuthenticated(true)
-    const saved = localStorage.getItem('volt_caixa_entries')
+    const saved = localStorage.getItem('volt_caixa_entries_v2')
     if (saved) {
       try {
         setManual(JSON.parse(saved))
@@ -89,15 +93,19 @@ export default function CaixaPage() {
       .then(data => {
         const list: CashEntry[] = (data.payments || [])
           .filter((p: any) => p.status === 'approved')
-          .map((p: any) => ({
-            id: `mp-${p.id}`,
-            date: String(p.date || '').slice(0, 10),
-            type: 'entrada' as const,
-            description: p.serviceName && p.serviceName !== 'N/A' ? `${p.serviceName} - ${p.orderId}` : `Pedido ${p.orderId}`,
-            amount: Number(p.amount) || 0,
-            category: 'Mercado Pago',
-            source: 'mp' as const,
-          }))
+          .map((p: any) => {
+            const svc = p.serviceName && p.serviceName !== 'N/A' ? p.serviceName : null
+            const ord = p.orderId && p.orderId !== 'N/A' ? String(p.orderId) : null
+            return {
+              id: `mp-${p.id}`,
+              date: String(p.date || '').slice(0, 10),
+              type: 'entrada' as const,
+              description: svc ? (ord ? `${svc} — pedido ${ord}` : svc) : 'Venda site — Pix Mercado Pago',
+              amount: Number(p.amount) || 0,
+              category: 'Mercado Pago',
+              source: 'mp' as const,
+            }
+          })
         setMpPayments(list)
       })
       .catch(() => {})
@@ -106,7 +114,7 @@ export default function CaixaPage() {
 
   const saveManual = (list: CashEntry[]) => {
     setManual(list)
-    localStorage.setItem('volt_caixa_entries', JSON.stringify(list))
+    localStorage.setItem('volt_caixa_entries_v2', JSON.stringify(list))
   }
 
   const all = useMemo(
