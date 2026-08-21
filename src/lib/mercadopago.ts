@@ -42,7 +42,13 @@ export async function createPreference(params: {
       notification_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhook`,
       payment_methods: {
         installments: 1,
-        excluded_payment_types: [{ id: 'debit_card' }, { id: 'ticket' }],
+        // Somente PIX: excluído tudo que não é transferência -> com binary_mode,
+        // o checkout pula a tela de escolha e cai direto no QR Code do Pix.
+        excluded_payment_types: [
+          { id: 'credit_card' },
+          { id: 'debit_card' },
+          { id: 'ticket' },
+        ],
       },
     },
   })
