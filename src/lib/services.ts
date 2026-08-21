@@ -10,7 +10,7 @@ export const serviceCategories: ServiceCategory[] = [
       {
         serviceId: 402,
         name: '100 Seguidores',
-        description: 'Seguidores com reposição 365 dias',
+        description: 'Seguidores com reposição 30 dias',
         quantity: 100,
         price: 5.90,
         cost: 0.48,
@@ -18,7 +18,7 @@ export const serviceCategories: ServiceCategory[] = [
       {
         serviceId: 402,
         name: '500 Seguidores',
-        description: 'Seguidores com reposição 365 dias',
+        description: 'Seguidores com reposição 30 dias',
         quantity: 500,
         price: 9.90,
         cost: 2.40,
@@ -26,7 +26,7 @@ export const serviceCategories: ServiceCategory[] = [
       {
         serviceId: 402,
         name: '1.000 Seguidores',
-        description: 'Seguidores com reposição 365 dias',
+        description: 'Seguidores com reposição 30 dias',
         quantity: 1000,
         price: 14.90,
         cost: 4.80,
@@ -36,7 +36,7 @@ export const serviceCategories: ServiceCategory[] = [
       {
         serviceId: 402,
         name: '3.000 Seguidores',
-        description: 'Seguidores com reposição 365 dias',
+        description: 'Seguidores com reposição 30 dias',
         quantity: 3000,
         price: 34.90,
         cost: 14.40,
@@ -44,7 +44,7 @@ export const serviceCategories: ServiceCategory[] = [
       {
         serviceId: 402,
         name: '5.000 Seguidores',
-        description: 'Seguidores com reposição 365 dias',
+        description: 'Seguidores com reposição 30 dias',
         quantity: 5000,
         price: 49.90,
         cost: 24.00,
@@ -53,7 +53,7 @@ export const serviceCategories: ServiceCategory[] = [
       {
         serviceId: 402,
         name: '10.000 Seguidores',
-        description: 'Seguidores com reposição 365 dias',
+        description: 'Seguidores com reposição 30 dias',
         quantity: 10000,
         price: 89.90,
         cost: 48.00,

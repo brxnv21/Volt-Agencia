@@ -8,7 +8,7 @@ const steps = [
   {
     number: '02',
     title: 'Faça o pagamento',
-    description: 'Pague com PIX, cartão ou boleto via Mercado Pago. Aprovação instantânea e 100% seguro.',
+    description: 'Pague com PIX ou cartão de crédito via Mercado Pago. Aprovação instantânea e 100% seguro.',
     icon: '💳',
   },
   {

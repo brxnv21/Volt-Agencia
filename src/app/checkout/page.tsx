@@ -407,7 +407,9 @@ function CheckoutContent() {
               </div>
               <div className="flex justify-between items-center mt-2">
                 <span className="text-volt-muted text-xs sm:text-sm">Reposição</span>
-                <span className="text-white font-medium text-sm sm:text-base">365 dias</span>
+                <span className="text-white font-medium text-sm sm:text-base">
+                  {serviceId === 402 ? '30 dias' : '365 dias'}
+                </span>
               </div>
               <div className="border-t border-volt-border mt-3 pt-3 flex justify-between items-center">
                 <span className="text-white font-semibold text-sm sm:text-base">Total</span>
@@ -533,7 +535,7 @@ function CheckoutContent() {
                   <span className="text-volt-primary">🔒</span> Pagamento 100% seguro via Mercado Pago
                 </div>
                 <div className="flex items-center gap-2 text-volt-muted text-[11px] sm:text-xs">
-                  <span className="text-volt-primary">🛡️</span> Garantia de reposição por 365 dias
+                  <span className="text-volt-primary">🛡️</span> Garantia de reposição por {serviceId === 402 ? '30 dias' : '365 dias'}
                 </div>
                 <div className="flex items-center gap-2 text-volt-muted text-[11px] sm:text-xs">
                   <span className="text-volt-primary">⚡</span> Entrega iniciada em até 15 minutos

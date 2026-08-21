@@ -25,11 +25,11 @@ const faqs = [
   },
   {
     question: 'Quais formas de pagamento são aceitas?',
-    answer: 'Aceitamos PIX (aprovação instantânea), cartão de crédito e boleto bancário. Tudo processado com segurança pelo Mercado Pago.',
+    answer: 'Aceitamos PIX (aprovação instantânea) e cartão de crédito. Tudo processado com segurança pelo Mercado Pago.',
   },
   {
     question: 'Funciona para qual rede social?',
-    answer: 'Focamos em Instagram, mas temos serviços para TikTok, YouTube, Facebook e Twitter/X. Consulte nossa tabela completa.',
+    answer: 'Focamos 100% em Instagram — seguidores, curtidas, visualizações, comentários e mais. Consulte nossa tabela completa.',
   },
   {
     question: 'Tem suporte disponível?',
