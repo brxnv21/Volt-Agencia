@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import WhatsAppButton from '@/components/WhatsAppButton'
@@ -16,11 +16,17 @@ export default function SuccessContent({
   isDemo: boolean
   value: number
 }) {
+  const [hasGuia, setHasGuia] = useState(false)
+
   useEffect(() => {
     if (!isDemo && value > 0) {
       trackPurchase(value, orderId)
       playCashRegisterSound()
       if ('vibrate' in navigator) navigator.vibrate([100, 50, 100, 50, 200])
+    }
+    if (localStorage.getItem('volt_guia') === '1') {
+      setHasGuia(true)
+      localStorage.removeItem('volt_guia')
     }
   }, [isDemo, value, orderId])
 
@@ -83,6 +89,15 @@ export default function SuccessContent({
                 }
               </p>
             </div>
+
+            {hasGuia && (
+              <a
+                href="/guia"
+                className="block w-full bg-yellow-400 text-black font-bold py-4 rounded-xl hover:bg-yellow-300 transition-all mb-3"
+              >
+                📕 ACESSAR SEU GUIA AGORA (digital)
+              </a>
+            )}
 
             <div className="space-y-3">
               <a

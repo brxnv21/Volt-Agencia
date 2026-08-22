@@ -84,6 +84,7 @@ async function sendSuccessEmail(data: {
   contactType: string
   turboOrderId: number
   amount: number
+  guiaAccess?: string
 }) {
   if (!process.env.RESEND_API_KEY) return
   const contactLabel = data.contactType === 'whatsapp' ? 'WhatsApp' : 'E-mail'
@@ -107,7 +108,7 @@ async function sendSuccessEmail(data: {
             </div>
             <div style="background: #2a2a2a; border-radius: 8px; padding: 16px; margin-bottom: 12px;">
               <p style="color: #999; margin: 4px 0;">Pedido Turbosociais</p>
-              <p style="color: #22c55e; margin: 4px 0; font-weight: bold;">#${data.turboOrderId}</p>
+              <p style="color: #22c55e; margin: 4px 0; font-weight: bold;">${data.turboOrderId ? '#' + data.turboOrderId : '— (apenas digital)'}</p>
             </div>
             <div style="background: #2a2a2a; border-radius: 8px; padding: 16px; margin-bottom: 12px;">
               <p style="color: #999; margin: 4px 0;">Serviço</p>
@@ -126,6 +127,10 @@ async function sendSuccessEmail(data: {
               <p style="color: white; margin: 4px 0; font-weight: bold;">${data.contact}</p>
               ${clientWa ? `<a href="${clientWa}" style="display: inline-block; margin-top: 8px; background: #25D366; color: #000; padding: 8px 16px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 13px;">📱 Falar com cliente no WhatsApp</a>` : ''}
             </div>
+            ${data.guiaAccess ? `<div style="background: #1e3a5f; border-radius: 8px; padding: 16px; margin-bottom: 12px;">
+              <p style="color: #999; margin: 4px 0;">📕 Produto digital no pedido</p>
+              <p style="color: white; margin: 4px 0;">Cliente liberado no Guia: <a href="${data.guiaAccess}" style="color: #22c55e;">${data.guiaAccess}</a></p>
+            </div>` : ''}
             <a href="https://turbosociais.com" style="display: block; background: #25D366; color: #000; text-align: center; padding: 14px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px;">
               Acompanhar no Turbosociais
             </a>
@@ -195,6 +200,7 @@ export async function POST(request: NextRequest) {
 
       if (order.upsells && order.upsells.length > 0) {
         for (const upsell of order.upsells) {
+          if ((upsell as any).digital || !upsell.serviceId) continue // produto digital: nada a fazer no fornecedor
           try {
             const upsellResult = await createOrder(upsell.serviceId, upsell.link, upsell.qty)
             if (upsellResult.order) {
@@ -230,7 +236,9 @@ export async function POST(request: NextRequest) {
         })
       }
 
-      if (allTurboIds.length > 0) {
+      const hasGuia = Array.isArray(order.upsells) && order.upsells.some((u: any) => u.digital || !u.serviceId)
+
+      if (allTurboIds.length > 0 || hasGuia) {
         try {
           await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
             method: 'PUT',
@@ -257,7 +265,8 @@ export async function POST(request: NextRequest) {
           contactType: order.contactType,
           turboOrderId: allTurboIds[0],
           amount: order.price,
-        })
+          guiaAccess: hasGuia ? 'https://volt-agencia.vercel.app/guia' : undefined,
+        } as any)
       }
 
       return NextResponse.json({

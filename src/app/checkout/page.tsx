@@ -116,6 +116,17 @@ function getServiceHint(categoryId: string): { label: string; placeholder: strin
 
 const upsells = [
   {
+    serviceId: 0,
+    qty: 0,
+    price: 9.90,
+    name: 'Guia Crescer no Instagram em 2026',
+    description: '📕 Ebook digital com o método completo — acesso IMEDIATO',
+    icon: '📕',
+    badge: 'DIGITAL · ACESSO IMEDIATO',
+    needsLink: false,
+    digital: true,
+  },
+  {
     serviceId: 390,
     qty: 1000,
     price: 9.90,
@@ -302,6 +313,7 @@ function CheckoutContent() {
     localStorage.setItem('volt_link', cleanLink)
     localStorage.setItem('volt_contact_type', contactType)
     localStorage.setItem('volt_contact', contactType === 'whatsapp' ? '+55' + contact.replace(/\D/g, '') : contact.trim())
+    if (selectedUpsells.some(u => (u as any).digital)) localStorage.setItem('volt_guia', '1')
 
     setLoading(true)
 
@@ -323,6 +335,7 @@ function CheckoutContent() {
             serviceId: u.serviceId,
             qty: u.qty,
             link: u.needsLink ? (upsellLinks[u.serviceId] || cleanLink) : cleanLink,
+            digital: Boolean((u as any).digital),
           })),
         }),
       })
