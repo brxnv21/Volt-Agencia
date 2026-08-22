@@ -34,6 +34,7 @@ export async function GET(request: NextRequest) {
 
       for (const p of results) {
         if (p.status === 'approved') continue // pagou = não é lead
+        if (!p.external_reference) continue // sem pedido = cobrança própria (ex: "Facebk *...", testes)
         if (String(p.description || '').toLowerCase().includes('teste')) continue
         let ref: any = {}
         try {
