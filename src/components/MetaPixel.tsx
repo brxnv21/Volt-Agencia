@@ -3,7 +3,7 @@
 import { usePathname, useSearchParams } from 'next/navigation'
 import { useEffect } from 'react'
 
-const PIXEL_ID = '27969781679346103'
+const PIXEL_IDS = ['27969781679346103', '1048382067836330']
 
 interface FbqFunction {
   (...args: unknown[]): void
@@ -39,7 +39,7 @@ export function PixelInit() {
     script.src = 'https://connect.facebook.net/en_US/fbevents.js'
     document.head.appendChild(script)
 
-    window.fbq('init', PIXEL_ID)
+    PIXEL_IDS.forEach(id => window.fbq('init', id))
     window.fbq('track', 'PageView')
   }, [])
 
