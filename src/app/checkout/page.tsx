@@ -215,14 +215,19 @@ function CheckoutContent() {
   const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null)
   const [couponMsg, setCouponMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
-  const couponDiscount = appliedCoupon ? Math.round(totalPrice * 0.1 * 100) / 100 : 0
+  const CUPONS: Record<string, { rate: number; label: string }> = {
+    VOLT10: { rate: 0.1, label: '-10% no seu pedido!' },
+    VOLTZAP: { rate: 0.3355, label: 'SUPER DESCONTO aplicado: -33% 🔥' },
+  }
+
+  const couponDiscount = appliedCoupon ? Math.round(totalPrice * CUPONS[appliedCoupon].rate * 100) / 100 : 0
   const finalTotal = Math.max(0, Math.round((totalPrice - couponDiscount) * 100) / 100)
 
   const applyCoupon = () => {
     const code = couponInput.trim().toUpperCase()
-    if (code === 'VOLT10') {
-      setAppliedCoupon('VOLT10')
-      setCouponMsg({ ok: true, text: '✓ Cupom aplicado: -10% no seu pedido!' })
+    if (CUPONS[code]) {
+      setAppliedCoupon(code)
+      setCouponMsg({ ok: true, text: `✓ Cupom ${code}: ${CUPONS[code].label}` })
     } else {
       setAppliedCoupon(null)
       setCouponMsg({ ok: false, text: 'Cupom inválido' })
@@ -241,6 +246,13 @@ function CheckoutContent() {
     if (savedLink) setLink(savedLink)
     if (savedContactType) setContactType(savedContactType)
     if (savedContact) setContact(savedContact.replace('+55', ''))
+
+    const cupomCode = (searchParams.get('cupom') || '').trim().toUpperCase()
+    if (cupomCode && CUPONS[cupomCode]) {
+      setCouponInput(cupomCode)
+      setAppliedCoupon(cupomCode)
+      setCouponMsg({ ok: true, text: `✓ Cupom ${cupomCode}: ${CUPONS[cupomCode].label}` })
+    }
 
     const saleInterval = setInterval(() => {
       const sale = generateRandomSale()

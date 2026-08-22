@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Dados incompletos' }, { status: 400 })
     }
 
-    const COUPONS: Record<string, number> = { VOLT10: 0.10 }
+    const COUPONS: Record<string, number> = { VOLT10: 0.10, VOLTZAP: 0.3355 }
     const discountRate = (coupon && COUPONS[String(coupon).trim().toUpperCase()]) || 0
     const finalPrice = Math.round(price * (1 - discountRate) * 100) / 100
 
