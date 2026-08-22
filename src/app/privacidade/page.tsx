@@ -38,7 +38,7 @@ export default function Privacidade() {
         <p className="text-sm">Para solicitar a exclusão dos seus dados, envie mensagem ao nosso WhatsApp <a href="https://wa.me/5527996115482" className="text-volt-accent underline">(27) 99611-5482</a> pedindo &quot;exclusão de dados&quot;, informando o e-mail da compra. Removemos tudo em até 72 horas.</p>
 
         <h2 className="text-white font-semibold mt-8 mb-2">6. Contato</h2>
-        <p className="text-sm">Dúvidas sobre esta política: WhatsApp (27) 99611-5482 ou e-mail bnsiq2015@gmail.com.</p>
+        <p className="text-sm">Dúvidas sobre esta política: WhatsApp (27) 99611-5482 ou e-mail volt.agenciaa@gmail.com.</p>
 
         <p className="text-xs text-gray-500 mt-10">Última atualização: 21/08/2026</p>
       </div>
