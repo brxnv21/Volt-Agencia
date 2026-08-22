@@ -85,11 +85,15 @@ async function sendLeadEmail(data: {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { serviceId, quantity, price, link, contact, contactType, serviceName, upsells } = body
+    const { serviceId, quantity, price, link, contact, contactType, serviceName, upsells, coupon } = body
 
     if (!serviceId || !quantity || !price || !link || !contact) {
       return NextResponse.json({ error: 'Dados incompletos' }, { status: 400 })
     }
+
+    const COUPONS: Record<string, number> = { VOLT10: 0.10 }
+    const discountRate = (coupon && COUPONS[String(coupon).trim().toUpperCase()]) || 0
+    const finalPrice = Math.round(price * (1 - discountRate) * 100) / 100
 
     const orderId = generateOrderId()
 
@@ -98,7 +102,7 @@ export async function POST(request: NextRequest) {
       orderId,
       serviceName: serviceName as string,
       quantity: quantity as number,
-      price: price as number,
+      price: finalPrice as number,
       link: link as string,
       contact: contact as string,
       contactType: (contactType || 'email') as string,
@@ -116,7 +120,7 @@ export async function POST(request: NextRequest) {
       contact,
       link,
       serviceName: fullServiceName,
-      price,
+      price: finalPrice,
       upsells: upsells?.map((u: any) => ({
         serviceId: u.serviceId,
         qty: u.qty,
@@ -141,7 +145,7 @@ export async function POST(request: NextRequest) {
       }
 
       return NextResponse.json({
-        checkoutUrl: `${appUrl}/success?order=${orderId}&demo=true&value=${price}`,
+          checkoutUrl: `${appUrl}/success?order=${orderId}&demo=true&value=${finalPrice}`,
         orderId,
         demo: true,
       })
@@ -149,7 +153,7 @@ export async function POST(request: NextRequest) {
 
     // PIX DIRETO: gera o pagamento via API e o cliente paga na NOSSA página
     const pix: any = await createPixPayment({
-      amount: price,
+      amount: finalPrice,
       description: `VOLT Agência - ${fullServiceName}`,
       externalReference: orderRef,
       orderId,
@@ -162,7 +166,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({
-      pixUrl: `/pagamento?pid=${pix.id}&order=${orderId}&value=${price}`,
+      pixUrl: `/pagamento?pid=${pix.id}&order=${orderId}&value=${finalPrice}`,
       orderId,
     })
   } catch (error) {

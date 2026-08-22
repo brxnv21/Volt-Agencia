@@ -211,6 +211,24 @@ function CheckoutContent() {
   const upsellTotal = selectedUpsells.reduce((sum, u) => sum + u.price, 0)
   const totalPrice = price + upsellTotal
 
+  const [couponInput, setCouponInput] = useState('')
+  const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null)
+  const [couponMsg, setCouponMsg] = useState<{ ok: boolean; text: string } | null>(null)
+
+  const couponDiscount = appliedCoupon ? Math.round(totalPrice * 0.1 * 100) / 100 : 0
+  const finalTotal = Math.max(0, Math.round((totalPrice - couponDiscount) * 100) / 100)
+
+  const applyCoupon = () => {
+    const code = couponInput.trim().toUpperCase()
+    if (code === 'VOLT10') {
+      setAppliedCoupon('VOLT10')
+      setCouponMsg({ ok: true, text: '✓ Cupom aplicado: -10% no seu pedido!' })
+    } else {
+      setAppliedCoupon(null)
+      setCouponMsg({ ok: false, text: 'Cupom inválido' })
+    }
+  }
+
   useEffect(() => {
     setMounted(true)
     setViewers(Math.floor(Math.random() * 20) + 8)
@@ -324,7 +342,8 @@ function CheckoutContent() {
         body: JSON.stringify({
           serviceId,
           quantity: qty,
-          price: totalPrice,
+          price: finalTotal,
+          coupon: appliedCoupon || undefined,
           link: cleanLink,
           contact: fullPhone,
           contactType,
@@ -432,13 +451,36 @@ function CheckoutContent() {
               <div className="border-t border-volt-border mt-3 pt-3 flex justify-between items-center">
                 <span className="text-white font-semibold text-sm sm:text-base">Total</span>
                 <div className="text-right">
-                  {upsellTotal > 0 && (
-                    <span className="text-gray-500 text-xs line-through mr-2">R$ {price.toFixed(2).replace('.', ',')}</span>
+                  {(upsellTotal > 0 || couponDiscount > 0) && (
+                    <span className="text-gray-500 text-xs line-through mr-2">R$ {totalPrice.toFixed(2).replace('.', ',')}</span>
                   )}
                   <span className="text-xl sm:text-2xl font-bold text-volt-primary">
-                    R$ {totalPrice.toFixed(2).replace('.', ',')}
+                    R$ {finalTotal.toFixed(2).replace('.', ',')}
                   </span>
                 </div>
+              </div>
+
+              <div className="mt-3">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={couponInput}
+                    onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                    placeholder="CUPOM DE DESCONTO"
+                    maxLength={20}
+                    className="flex-1 bg-volt-dark border border-volt-border rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-gray-600 focus:outline-none focus:border-volt-primary"
+                  />
+                  <button
+                    type="button"
+                    onClick={applyCoupon}
+                    className="bg-volt-primary/15 border border-volt-primary text-volt-primary font-semibold text-sm rounded-xl px-4 hover:bg-volt-primary/30 transition-colors"
+                  >
+                    Aplicar
+                  </button>
+                </div>
+                {couponMsg && (
+                  <p className={`text-xs mt-1.5 ${couponMsg.ok ? 'text-green-400' : 'text-red-400'}`}>{couponMsg.text}</p>
+                )}
               </div>
             </div>
 
